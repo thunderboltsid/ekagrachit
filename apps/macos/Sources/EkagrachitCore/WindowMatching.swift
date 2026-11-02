@@ -147,3 +147,24 @@ public struct FocusLossDebouncer: Sendable {
         }
     }
 }
+
+extension FocusPolicy {
+    /// Windows that the window server draws *on top of* the focus window inside
+    /// its uncovered rectangle: the Dock (layer 20) when the focus window extends
+    /// over it, other apps' floating panels, notification banners. Their
+    /// intersection with the focus window must be covered too, or they are
+    /// visible and clickable through the hole.
+    ///
+    /// Excluded: the browser's own surfaces, Ekagrachit's windows, system
+    /// security UI (`exemptPids`), invisible windows, and anything at or above
+    /// the overlay level (which we could not cover anyway).
+    public static func intruderPatches(focus: Rect, above: [WindowInfo], browserPid: Int32, ownPid: Int32,
+                                       overlayLayer: Int, exemptPids: Set<Int32> = []) -> [Rect] {
+        above.compactMap { w in
+            guard w.layer > 0, w.layer < overlayLayer, w.alpha > 0.01,
+                  w.pid != browserPid, w.pid != ownPid, !exemptPids.contains(w.pid)
+            else { return nil }
+            return w.bounds.intersection(focus)
+        }
+    }
+}

@@ -64,6 +64,8 @@ final class FocusSessionCoordinator: ObservableObject {
     private var hotKey: HotKey?
     private var lastRefocus = Date.distantPast
     private var focusDebouncer = FocusLossDebouncer()
+    private var exemptPidsCache: Set<Int32> = []
+    private var exemptPidsAt = Date.distantPast
     private var ticks = 0
     private var observers: [NSObjectProtocol] = []
     private var cancellables: Set<AnyCancellable> = []
@@ -389,9 +391,15 @@ final class FocusSessionCoordinator: ObservableObject {
             dispatch(.nativeWindowGone(sid: session.sid))
         }
         let front = NSWorkspace.shared.frontmostApplication
+        let above = info == nil ? [] : tracker.windowsAbove()
+        let ownPid = ProcessInfo.processInfo.processIdentifier
+        let patches = info.map {
+            FocusPolicy.intruderPatches(focus: $0.bounds, above: above, browserPid: tracker.browserPid, ownPid: ownPid,
+                                        overlayLayer: overlayLevel.rawValue, exemptPids: exemptPids())
+        } ?? []
         let assessment = FocusPolicy.assess(
             focus: info,
-            above: info == nil ? [] : tracker.windowsAbove(),
+            above: above,
             frontmostPid: front?.processIdentifier,
             frontmostBundleID: front?.bundleIdentifier,
             browserPid: tracker.browserPid,
@@ -400,7 +408,7 @@ final class FocusSessionCoordinator: ObservableObject {
         switch focusDebouncer.next(assessment, frontmostIsBrowser: front?.processIdentifier == tracker.browserPid, now: clock.now()) {
         case .openHole:
             overlays.setSuspended(false)
-            overlays.show(hole: info?.bounds, shielded: false)
+            overlays.show(hole: info?.bounds, shielded: false, patches: patches)
         case .closeHoleAndRefocus:
             overlays.setSuspended(false)
             overlays.show(hole: info?.bounds, shielded: true) // close the hole first, then restore
@@ -412,6 +420,18 @@ final class FocusSessionCoordinator: ObservableObject {
         case .standAside:
             overlays.setSuspended(true)
         }
+    }
+
+    /// Pids of running system-security UI processes (never covered). Cached for 2 s.
+    private func exemptPids() -> Set<Int32> {
+        let now = Date()
+        if now.timeIntervalSince(exemptPidsAt) > 2 {
+            exemptPidsCache = Set(NSWorkspace.shared.runningApplications
+                .filter { $0.bundleIdentifier.map(FocusPolicy.exemptBundleIDs.contains) ?? false }
+                .map(\.processIdentifier))
+            exemptPidsAt = now
+        }
+        return exemptPidsCache
     }
 
     private func refocus(force: Bool) {

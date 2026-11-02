@@ -96,3 +96,27 @@ final class FocusLossDebouncerTests: XCTestCase {
         XCTAssertEqual(d.next(.ownUI, frontmostIsBrowser: false, now: at(0)), .openHole)
     }
 }
+
+final class IntruderPatchTests: XCTestCase {
+    let focus = Rect(x: 120, y: 140, width: 900, height: 600)
+
+    func testDockOverlappingTheFocusWindowIsPatched() {
+        let dock = WindowInfo(number: 9, pid: 300, layer: 20, bounds: Rect(x: 100, y: 700, width: 900, height: 68), onScreen: true)
+        XCTAssertEqual(FocusPolicy.intruderPatches(focus: focus, above: [dock], browserPid: 500, ownPid: 42, overlayLayer: 26),
+                       [Rect(x: 120, y: 700, width: 880, height: 40)])
+    }
+
+    func testFloatingPanelsOfOtherAppsArePatchedButNotOwnOrBrowserOrSystemOrAboveUs() {
+        let floating = WindowInfo(number: 1, pid: 900, layer: 3, bounds: Rect(x: 200, y: 200, width: 100, height: 100), onScreen: true)
+        let chromeBubble = WindowInfo(number: 2, pid: 500, layer: 3, bounds: Rect(x: 200, y: 200, width: 100, height: 100), onScreen: true)
+        let mine = WindowInfo(number: 3, pid: 42, layer: 27, bounds: focus, onScreen: true)
+        let normal = WindowInfo(number: 4, pid: 900, layer: 0, bounds: focus, onScreen: true)
+        let menu = WindowInfo(number: 5, pid: 900, layer: 101, bounds: focus, onScreen: true)
+        let security = WindowInfo(number: 6, pid: 77, layer: 8, bounds: focus, onScreen: true)
+        let invisible = WindowInfo(number: 7, pid: 900, layer: 3, bounds: focus, onScreen: true, alpha: 0)
+        let outside = WindowInfo(number: 8, pid: 900, layer: 3, bounds: Rect(x: 0, y: 0, width: 50, height: 50), onScreen: true)
+        let patches = FocusPolicy.intruderPatches(focus: focus, above: [floating, chromeBubble, mine, normal, menu, security, invisible, outside],
+                                                  browserPid: 500, ownPid: 42, overlayLayer: 26, exemptPids: [77])
+        XCTAssertEqual(patches, [Rect(x: 200, y: 200, width: 100, height: 100)])
+    }
+}
