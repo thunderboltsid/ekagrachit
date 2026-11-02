@@ -13,7 +13,8 @@
     "test": "node --test 'tests/unit/*.test.ts'",
     "test:e2e": "node scripts/build.mjs && node --test --test-concurrency=1 --test-timeout=60000 --test-reporter=spec 'tests/e2e/*.test.ts'",
     "package": "node scripts/build.mjs --zip",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "test:macos": "node scripts/build.mjs && node --test --test-concurrency=1 --test-timeout=180000 --test-reporter=spec 'tests/macos/*.test.ts'"
   },
   "devDependencies": {
     "@types/chrome": "0.3.7",

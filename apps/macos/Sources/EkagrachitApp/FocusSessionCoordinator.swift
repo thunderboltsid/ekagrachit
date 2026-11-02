@@ -128,7 +128,9 @@ final class FocusSessionCoordinator: ObservableObject {
         }
         guard (1...480).contains(minutes) else { return report("Choose a duration between 1 and 480 minutes.") }
         accessibilityTrusted = Permissions.accessibilityTrusted
-        guard accessibilityTrusted else {
+        // Test rigs without a TCC grant may opt out; raising then falls back to app activation.
+        let allowUntrusted = ProcessInfo.processInfo.environment["EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY"] == "1"
+        guard accessibilityTrusted || allowUntrusted else {
             Permissions.requestAccessibility()
             return report("Ekagrachit needs the Accessibility permission to keep the focus window in front. Grant it in System Settings → Privacy & Security → Accessibility, then start again.")
         }

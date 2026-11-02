@@ -22,6 +22,9 @@ var targets: [Target] = [
 
 #if os(macOS)
 products.append(.executable(name: "Ekagrachit", targets: ["Ekagrachit"]))
+products.append(.executable(name: "ekagrachit-probe", targets: ["ekagrachit-probe"]))
+// Test driver for desktop E2E tests (window list, synthetic input). Not shipped in the app bundle.
+targets.append(.executableTarget(name: "ekagrachit-probe", path: "Sources/EkagrachitProbe"))
 targets.append(
     .executableTarget(
         name: "Ekagrachit",
