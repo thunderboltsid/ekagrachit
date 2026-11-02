@@ -286,7 +286,14 @@ final class FocusSessionCoordinator: ObservableObject {
         default:
             break
         }
-        guard id == activeConnection else { return } // only the active extension may drive the session
+        guard id == activeConnection else {
+            // Only the active (hello'd) extension may drive the session. Answer
+            // requests explicitly instead of letting the caller time out.
+            if case let .startRequest(cid, _, _) = msg {
+                bridge.send(.startResult(cid: cid, ok: false, error: "Handshake not complete; try again."), to: id)
+            }
+            return
+        }
 
         switch msg {
         case let .startRequest(cid, target, minutes):
