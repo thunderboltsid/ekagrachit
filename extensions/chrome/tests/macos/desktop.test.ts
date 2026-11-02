@@ -81,6 +81,9 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const ov = overlays();
     assert.ok(ov.length >= 1, 'overlay windows present');
     for (const o of ov) assert.ok(inter(o, popup) <= 2 * (popup.w + popup.h), `overlay ${JSON.stringify(o)} overlaps the focus window ${JSON.stringify(popup)}`);
+    for (const hud of appWindows().filter((w) => w.layer === OVERLAY_LAYER + 1)) {
+      assert.equal(inter(hud, popup), 0, `time pill ${JSON.stringify(hud)} overlaps the focus window ${JSON.stringify(popup)}`);
+    }
     const covered = ov.reduce((s, o) => s + inter(o, screen), 0);
     const expected = screen.w * screen.h - inter(popup, screen);
     assert.ok(Math.abs(covered - expected) <= 4 * (screen.w + screen.h), `overlays cover ${covered}, expected ≈${expected}`);
