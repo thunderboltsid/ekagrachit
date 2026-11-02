@@ -70,6 +70,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Launch the real app and drive it through the real host
+        run: node scripts/ci-macos-smoke.mjs apps/macos/build/Ekagrachit.app
       - name: Build extension
         working-directory: extensions/chrome
         run: npm ci && npm run build
