@@ -76,17 +76,38 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     assert.ok(w, `native window for popup ${JSON.stringify(b)} not found in ${JSON.stringify(windows().filter((x) => x.layer === 0))}`);
     return w.pid;
   };
-  /** Overlays cover the whole screen except exactly the popup's rectangle. */
+  /**
+   * Overlays cover the whole screen except the popup's rectangle; inside it they
+   * cover exactly the parts where another app's window is drawn above the popup
+   * (e.g. the Dock when the popup extends under it).
+   */
   const assertHoleAround = (popup: Rect) => {
-    const ov = overlays();
+    const all = windows();
+    const ov = all.filter((w) => w.pid === appPid() && w.layer === OVERLAY_LAYER);
+    const bpid = all.find((w) => w.layer === 0 && Math.abs(w.x - popup.x) < 5 && Math.abs(w.y - popup.y) < 5)?.pid;
+    const intruders = all
+      .filter((w) => w.layer > 0 && w.layer < OVERLAY_LAYER && w.alpha > 0.01 && w.pid !== appPid() && w.pid !== bpid)
+      .map((w) => ({ w, area: inter(w, popup) }))
+      .filter((x) => x.area > 0);
     assert.ok(ov.length >= 1, 'overlay windows present');
-    for (const o of ov) assert.ok(inter(o, popup) <= 2 * (popup.w + popup.h), `overlay ${JSON.stringify(o)} overlaps the focus window ${JSON.stringify(popup)}`);
-    for (const hud of appWindows().filter((w) => w.layer === OVERLAY_LAYER + 1)) {
+    const slack = 2 * (popup.w + popup.h);
+    const allowed = intruders.reduce((a, x) => a + x.area, 0);
+    const overlapPopup = ov.reduce((a, o) => a + inter(o, popup), 0);
+    assert.ok(overlapPopup <= allowed + slack, `overlays cover ${overlapPopup} px² of the focus window; only ${allowed} px² of intruders justify it`);
+    for (const { w } of intruders) {
+      const r = { x: Math.max(w.x, popup.x), y: Math.max(w.y, popup.y), w: 0, h: 0 };
+      r.w = Math.min(w.x + w.w, popup.x + popup.w) - r.x;
+      r.h = Math.min(w.y + w.h, popup.y + popup.h) - r.y;
+      const covered = ov.reduce((a, o) => a + inter(o, r), 0);
+      assert.ok(covered >= r.w * r.h - 2 * (r.w + r.h), `${w.owner} (layer ${w.layer}) is visible over the focus window: ${covered}/${r.w * r.h} covered`);
+      console.log(`intruder ${w.owner} layer ${w.layer} over focus window: covered`);
+    }
+    for (const hud of all.filter((w) => w.pid === appPid() && w.layer === OVERLAY_LAYER + 1)) {
       assert.equal(inter(hud, popup), 0, `time pill ${JSON.stringify(hud)} overlaps the focus window ${JSON.stringify(popup)}`);
     }
-    const covered = ov.reduce((s, o) => s + inter(o, screen), 0);
+    const coveredOutside = ov.reduce((a, o) => a + inter(o, screen) - inter(o, popup), 0);
     const expected = screen.w * screen.h - inter(popup, screen);
-    assert.ok(Math.abs(covered - expected) <= 4 * (screen.w + screen.h), `overlays cover ${covered}, expected ≈${expected}`);
+    assert.ok(Math.abs(coveredOutside - expected) <= 4 * (screen.w + screen.h), `overlays cover ${coveredOutside} outside the focus window, expected ≈${expected}`);
   };
   const waitActive = (label: string) => waitFor(async () => overlays().length, (n) => n >= 1, 20_000, label);
   const startSession = async (minutes: number) => {
@@ -191,7 +212,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     assertHoleAround(await popupBounds());
   });
 
-  test('moving and resizing the focus window: the hole follows', async () => {
+  test('moving and resizing the focus window (into the Dock area): the hole follows, the Dock stays covered', async () => {
     const s = (await session(h))!;
     await inSW(h, (id) => chrome.windows.update(id, { left: 120, top: 140, width: 900, height: 600 }).then(() => undefined), s.windowId!);
     await sleep(1200);
@@ -206,6 +227,27 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     await inSW(h, (id) => chrome.windows.update(id, { state: 'minimized' }).then(() => undefined), s.windowId!);
     await waitFor(() => inSW(h, (id) => chrome.windows.get(id).then((w) => w.state), s.windowId!), (st) => st !== 'minimized', 5_000, 'unminimised');
     await sleep(600);
+    assertHoleAround(await popupBounds());
+  });
+
+  test('full-screen focus window (its own Space): app switch returns to it', async () => {
+    const s = (await session(h))!;
+    const bpid = await browserPid();
+    await inSW(h, (id) => chrome.windows.update(id, { state: 'fullscreen' }).then(() => undefined), s.windowId!);
+    await sleep(2500); // Space transition animation
+    shot('05a-fullscreen');
+    assert.equal(await inSW(h, (id) => chrome.windows.get(id).then((w) => w.state), s.windowId!), 'fullscreen');
+    probe('activate', 'com.apple.finder'); // forces a Space switch away
+    const t0 = Date.now();
+    await waitFor(async () => frontmost().pid, (pid) => pid === bpid, 6_000, 'browser frontmost again');
+    console.log(`full-screen: refocused after ${Date.now() - t0} ms`);
+    await sleep(2000);
+    assert.equal(await inSW(h, (id) => chrome.windows.get(id).then((w) => w.state), s.windowId!), 'fullscreen', 'still full screen');
+    const top = windows().find((w) => w.layer === 0);
+    assert.equal(top?.pid, bpid, 'the full-screen focus window is visible');
+    shot('05b-fullscreen-after-switch');
+    await inSW(h, (id) => chrome.windows.update(id, { state: 'normal' }).then(() => undefined), s.windowId!);
+    await sleep(2500);
     assertHoleAround(await popupBounds());
   });
 

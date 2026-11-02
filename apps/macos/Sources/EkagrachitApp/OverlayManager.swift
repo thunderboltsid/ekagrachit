@@ -99,9 +99,10 @@ final class OverlayManager {
     /// - Parameters:
     ///   - hole: focus window rect in global top-left coordinates, or nil to cover everything
     ///   - shielded: cover the hole too (something else is in front of the focus window)
-    func show(hole: Rect?, shielded: Bool) {
+    ///   - patches: extra rects (global top-left) inside the hole to cover, e.g. the Dock over the focus window
+    func show(hole: Rect?, shielded: Bool, patches: [Rect] = []) {
         isShown = true
-        layout(hole: shielded ? nil : hole)
+        layout(hole: shielded ? nil : hole, patches: shielded ? [] : patches)
         hud.place(near: hole)
         if !isSuspended { hud.orderFrontRegardless() }
     }
@@ -132,7 +133,7 @@ final class OverlayManager {
         lastLayout = []
     }
 
-    private func layout(hole: Rect?) {
+    private func layout(hole: Rect?, patches: [Rect]) {
         guard !isSuspended else { return }
         let screens = NSScreen.screens
         guard let primary = screens.first else { return }
@@ -145,6 +146,10 @@ final class OverlayManager {
             for r in OverlayGeometry.coverRects(screen: sr, hole: holeCocoa) {
                 rects.append(CGRect(x: r.x, y: r.y, width: r.width, height: r.height))
             }
+        }
+        for p in patches {
+            let r = OverlayGeometry.flip(p.integral, primaryHeight: primaryHeight)
+            rects.append(CGRect(x: r.x, y: r.y, width: r.width, height: r.height))
         }
         if rects == lastLayout { return }
         lastLayout = rects
