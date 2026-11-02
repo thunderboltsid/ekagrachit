@@ -327,4 +327,34 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     await waitFor(() => inSW(h, (id) => chrome.windows.get(id).then(() => true, () => false), s.windowId!), (e) => !e, 5_000, 'focus window closed');
     shot('09-expired');
   });
+
+  test('Mission Control: opening and leaving it returns to the focus window', async () => {
+    await startSession(10);
+    const bpid = await browserPid();
+    execFileSync('open', ['-a', 'Mission Control']);
+    await sleep(1500);
+    shot('10-mission-control');
+    probe('key', '53'); // Escape leaves Mission Control
+    await sleep(1500);
+    await waitFor(async () => frontmost().pid, (p) => p === bpid, 4_000, 'browser frontmost');
+    assertHoleAround(await popupBounds(), 'after-mission-control');
+  });
+
+  test('Stage Manager enabled: isolation still holds', async () => {
+    execFileSync('defaults', ['write', 'com.apple.WindowManager', 'GloballyEnabled', '-bool', 'true']);
+    try {
+      await sleep(3000);
+      const bpid = await browserPid();
+      probe('activate', 'com.apple.finder');
+      await waitFor(async () => frontmost().pid, (p) => p === bpid, 4_000, 'browser frontmost with Stage Manager');
+      await sleep(1500);
+      shot('11-stage-manager');
+      assertHoleAround(await popupBounds(), 'stage-manager');
+      await assertStable(await popupBounds());
+    } finally {
+      execFileSync('defaults', ['write', 'com.apple.WindowManager', 'GloballyEnabled', '-bool', 'false']);
+      const s = await session(h);
+      if (s) await inSW(h, (x) => (globalThis as any).__ekagrachit.requestEnd(x), s.sid);
+    }
+  });
 });
