@@ -72,7 +72,7 @@ apps/macos/            Swift package
   Sources/EkagrachitCore/   pure logic: state machine, deadlines, protocol, IPC, geometry (macOS + Linux)
   Sources/EkagrachitHost/   ekagrachit-host (Chrome Native Messaging host)
   Sources/EkagrachitApp/    menu bar app (AppKit/SwiftUI)
-  Tests/                    XCTest (57 tests incl. real socket + host relay)
+  Tests/                    XCTest (60 tests incl. real socket + host relay)
 extensions/chrome/     MV3 extension (TypeScript, esbuild)
   src/shared/               identity policy, DNR rules, protocol, reconciliation (pure)
   src/background/           service worker: controller + native bridge

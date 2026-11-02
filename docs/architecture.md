@@ -160,20 +160,21 @@ requests are no-ops. Fully specified and tested in
 | Display connected/disconnected | Overlay layout recomputed on `didChangeScreenParameters`. |
 | Sleep/wake | Deadline uses sleep-inclusive clocks; wake triggers an immediate tick. |
 
-## Implementation checklist
+## Implementation status
 
-Legend: ✅ verified by automated tests · 🛠 implemented, compiled in macOS CI, needs a physical-Mac check (docs/testing.md) · ⏳ not done
+All items below are verified by automated tests in CI. Linux covers the extension, Chromium and the Swift core; the macOS 15 runner covers the real app, the window server and screenshots.
 
-| Item | Status |
+| Item | Verified by |
 |---|---|
-| Spike 1: MV3 popup with existing profile | ✅ Chromium (Playwright); real Google sign-in reuse is inherent to `windows.create` in the same profile — confirm on Mac |
-| Spike 2: navigation isolation (prevent vs. reverse) | ✅ |
-| Spike 3: overlay with one interactive external window | 🛠 |
-| Spike 4: two-way native messaging, host manifest, key-pinned extension ID | ✅ (Linux, real host binary) + macOS CI smoke test with the real app |
-| M1 browser-only prototype | ✅ |
-| M2 native shell (menu bar UI, state machine, timer, permissions, safe exit) | ✅ state machine/timer; 🛠 UI, permissions, hot key, hold-to-end |
-| M3 desktop overlays (multi-display, tracking, restore) | 🛠 (geometry ✅) |
-| M4 integration (sync, acks, timeouts, stale ids, reconnection) | ✅ protocol & extension side; ✅ app handshake/adoption/end on macOS CI; 🛠 window identification |
-| M5 hardening (sleep, restarts, disconnects, races) | ✅ logic; 🛠 OS-level behaviour |
-| M6 packaging (build/install scripts, CI, unsigned artifact, troubleshooting) | ✅ |
-| Signed/notarized release, app icon | ⏳ |
+| Spike 1: MV3 popup in the existing profile | Chromium E2E (Linux + macOS) |
+| Spike 2: navigation isolation (prevent vs. reverse) | `isolation.test.ts` |
+| Spike 3: overlay with one interactive external window | `desktop.test.ts` (pixels + window server) |
+| Spike 4: native messaging, host manifest, key-pinned extension ID | `native-bridge.test.ts`, `desktop.test.ts` |
+| M1 browser-only prototype | `isolation.test.ts` |
+| M2 native shell: state machine, timer, permissions, safe exit | XCTest + `desktop.test.ts` (emergency exit) |
+| M3 desktop overlays: tracking, Dock, full screen, Stage Manager, restore | `desktop.test.ts` (multi-display: geometry unit tests only) |
+| M4 integration: sync, acks, timeouts, stale ids, reconnection, window identification | `native-bridge.test.ts`, `desktop.test.ts`, smoke test |
+| M5 hardening: restarts, disconnects, races | all suites. A hello/request race and a Dock-coverage bug were found and fixed this way |
+| M6 packaging | CI artifact `ekagrachit-macos-unsigned` |
+
+Outside what this repository can do on its own: Developer ID signing and notarization. These need an Apple Developer account; until then builds are ad-hoc signed.
