@@ -156,13 +156,18 @@ extension FocusPolicy {
     /// visible and clickable through the hole.
     ///
     /// Excluded: the browser's own surfaces, Ekagrachit's windows, system
-    /// security UI (`exemptPids`), invisible windows, and anything at or above
-    /// the overlay level (which we could not cover anyway).
+    /// security UI and the Dock (`excludedPids`; the Dock is handled by clipping
+    /// the hole to the screen's visible frame), invisible windows, anything at
+    /// or above the overlay level (which we could not cover anyway), and windows
+    /// that enclose the whole focus window: those are system-wide, mostly
+    /// transparent surfaces (the Dock's and Notification Center's windows span
+    /// the screen), whose bounds say nothing about what is drawn.
     public static func intruderPatches(focus: Rect, above: [WindowInfo], browserPid: Int32, ownPid: Int32,
-                                       overlayLayer: Int, exemptPids: Set<Int32> = []) -> [Rect] {
+                                       overlayLayer: Int, excludedPids: Set<Int32> = []) -> [Rect] {
         above.compactMap { w in
             guard w.layer > 0, w.layer < overlayLayer, w.alpha > 0.01,
-                  w.pid != browserPid, w.pid != ownPid, !exemptPids.contains(w.pid)
+                  w.pid != browserPid, w.pid != ownPid, !excludedPids.contains(w.pid),
+                  !w.bounds.contains(focus, tolerance: 1)
             else { return nil }
             return w.bounds.intersection(focus)
         }

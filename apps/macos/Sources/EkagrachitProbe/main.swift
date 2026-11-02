@@ -36,12 +36,13 @@ func windows() -> [[String: Any]] {
     }
 }
 
-func screens() -> [[String: Double]] {
+func screens() -> [[String: Any]] {
     // Global top-left coordinates (same space as CGWindowList).
     let primaryH = NSScreen.screens.first?.frame.height ?? 0
     return NSScreen.screens.map { s in
-        let f = s.frame
-        return ["x": f.minX, "y": primaryH - f.maxY, "w": f.width, "h": f.height]
+        let f = s.frame, v = s.visibleFrame
+        return ["x": f.minX, "y": primaryH - f.maxY, "w": f.width, "h": f.height,
+                "visible": ["x": v.minX, "y": primaryH - v.maxY, "w": v.width, "h": v.height]]
     }
 }
 
@@ -53,6 +54,24 @@ case "env":
     emit(["axTrusted": AXIsProcessTrusted(), "screens": screens(), "frontmost": frontmost()])
 case "windows":
     emit(windows())
+case "brightness":
+    // brightness FILE X Y W H  (points on the primary screen) -> mean luminance 0…1
+    let a = Array(args)
+    guard let data = FileManager.default.contents(atPath: a[1]), let rep = NSBitmapImageRep(data: data),
+          let primary = NSScreen.screens.first else { emit(["error": "unreadable"]); exit(1) }
+    let scale = Double(rep.pixelsWide) / primary.frame.width
+    let x0 = Int(Double(a[2])! * scale), y0 = Int(Double(a[3])! * scale)
+    let w = Int(Double(a[4])! * scale), h = Int(Double(a[5])! * scale)
+    var sum = 0.0, n = 0.0
+    for y in stride(from: max(0, y0), to: min(rep.pixelsHigh, y0 + h), by: 3) {
+        for x in stride(from: max(0, x0), to: min(rep.pixelsWide, x0 + w), by: 3) {
+            if let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) {
+                sum += (c.redComponent + c.greenComponent + c.blueComponent) / 3
+                n += 1
+            }
+        }
+    }
+    emit(["brightness": n > 0 ? sum / n : -1, "samples": n])
 case "frontmost":
     emit(frontmost())
 case "click":

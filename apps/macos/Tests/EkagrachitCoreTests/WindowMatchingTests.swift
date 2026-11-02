@@ -100,10 +100,13 @@ final class FocusLossDebouncerTests: XCTestCase {
 final class IntruderPatchTests: XCTestCase {
     let focus = Rect(x: 120, y: 140, width: 900, height: 600)
 
-    func testDockOverlappingTheFocusWindowIsPatched() {
-        let dock = WindowInfo(number: 9, pid: 300, layer: 20, bounds: Rect(x: 100, y: 700, width: 900, height: 68), onScreen: true)
-        XCTAssertEqual(FocusPolicy.intruderPatches(focus: focus, above: [dock], browserPid: 500, ownPid: 42, overlayLayer: 26),
-                       [Rect(x: 120, y: 700, width: 880, height: 40)])
+    func testScreenSpanningSystemSurfacesAreNotTreatedAsIntruders() {
+        // Regression (seen on macOS CI): the Dock owns a mostly transparent window
+        // spanning the screen; patching its bounds covered the whole document.
+        let dockSurface = WindowInfo(number: 9, pid: 300, layer: 20, bounds: Rect(x: 0, y: 0, width: 1024, height: 768), onScreen: true)
+        XCTAssertEqual(FocusPolicy.intruderPatches(focus: focus, above: [dockSurface], browserPid: 500, ownPid: 42, overlayLayer: 26), [])
+        let dockBar = WindowInfo(number: 10, pid: 300, layer: 20, bounds: Rect(x: 100, y: 700, width: 900, height: 68), onScreen: true)
+        XCTAssertEqual(FocusPolicy.intruderPatches(focus: focus, above: [dockBar], browserPid: 500, ownPid: 42, overlayLayer: 26, excludedPids: [300]), [])
     }
 
     func testFloatingPanelsOfOtherAppsArePatchedButNotOwnOrBrowserOrSystemOrAboveUs() {
@@ -116,7 +119,7 @@ final class IntruderPatchTests: XCTestCase {
         let invisible = WindowInfo(number: 7, pid: 900, layer: 3, bounds: focus, onScreen: true, alpha: 0)
         let outside = WindowInfo(number: 8, pid: 900, layer: 3, bounds: Rect(x: 0, y: 0, width: 50, height: 50), onScreen: true)
         let patches = FocusPolicy.intruderPatches(focus: focus, above: [floating, chromeBubble, mine, normal, menu, security, invisible, outside],
-                                                  browserPid: 500, ownPid: 42, overlayLayer: 26, exemptPids: [77])
+                                                  browserPid: 500, ownPid: 42, overlayLayer: 26, excludedPids: [77])
         XCTAssertEqual(patches, [Rect(x: 200, y: 200, width: 100, height: 100)])
     }
 }

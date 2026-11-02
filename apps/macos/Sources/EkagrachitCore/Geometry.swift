@@ -77,6 +77,15 @@ public enum OverlayGeometry {
         return out.filter { !$0.isEmpty }
     }
 
+    /// The part of the focus window that may stay uncovered on one screen: the
+    /// window clipped to the screen's visible frame (which excludes the menu bar
+    /// and the Dock, both drawn above normal windows), except for a full-screen
+    /// window, which owns the whole screen. Same coordinate space for all rects.
+    public static func hole(window: Rect, screen: Rect, visible: Rect) -> Rect? {
+        if window.contains(screen, tolerance: 2) { return screen }
+        return window.intersection(visible)
+    }
+
     /// Converts a rect between global top-left (Quartz) and Cocoa coordinates.
     /// The transform is its own inverse. `primaryHeight` is the height of the
     /// primary display (the one whose Cocoa frame has origin (0,0)).

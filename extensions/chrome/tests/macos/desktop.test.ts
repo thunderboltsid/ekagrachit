@@ -26,7 +26,8 @@ const HOST_NAME = 'io.github.thunderboltsid.ekagrachit';
 
 interface Win { number: number; pid: number; owner: string; layer: number; alpha: number; x: number; y: number; w: number; h: number }
 interface Rect { x: number; y: number; w: number; h: number }
-interface Env { axTrusted: boolean; screens: Rect[]; frontmost: { pid: number; bundle: string; name: string } }
+interface Screen extends Rect { visible: Rect }
+interface Env { axTrusted: boolean; screens: Screen[]; frontmost: { pid: number; bundle: string; name: string } }
 
 const probe = <T>(...args: string[]): T => JSON.parse(execFileSync(PROBE, args, { encoding: 'utf8' })) as T;
 const windows = () => probe<Win[]>('windows');
@@ -60,7 +61,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
   let appProc: ChildProcess;
   let h: Harness;
   let env: Env;
-  let screen: Rect;
+  let screen: Screen;
 
   const appPid = () => appProc.pid!;
   const overlays = () => windows().filter((w) => w.pid === appPid() && w.layer === OVERLAY_LAYER);
@@ -77,37 +78,53 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     return w.pid;
   };
   /**
-   * Overlays cover the whole screen except the popup's rectangle; inside it they
-   * cover exactly the parts where another app's window is drawn above the popup
-   * (e.g. the Dock when the popup extends under it).
+   * Independent oracle for the isolation layout:
+   *  - expected uncovered area = popup ∩ visible frame (menu bar and Dock stay
+   *    covered), or the whole screen for a full-screen popup;
+   *  - overlays must cover everything else and nothing of that area;
+   *  - pixels: a screenshot must show the page (white) inside that area, not the overlay.
    */
-  const assertHoleAround = (popup: Rect) => {
+  const assertHoleAround = (popup: Rect, label = 'hole') => {
+    const fullscreen = popup.x <= screen.x + 2 && popup.y <= screen.y + 2 && popup.w >= screen.w - 4 && popup.h >= screen.h - 4;
+    const v = fullscreen ? screen : screen.visible;
+    const hx = Math.max(popup.x, v.x), hy = Math.max(popup.y, v.y);
+    const hole: Rect = { x: hx, y: hy, w: Math.min(popup.x + popup.w, v.x + v.w) - hx, h: Math.min(popup.y + popup.h, v.y + v.h) - hy };
     const all = windows();
     const ov = all.filter((w) => w.pid === appPid() && w.layer === OVERLAY_LAYER);
-    const bpid = all.find((w) => w.layer === 0 && Math.abs(w.x - popup.x) < 5 && Math.abs(w.y - popup.y) < 5)?.pid;
-    const intruders = all
-      .filter((w) => w.layer > 0 && w.layer < OVERLAY_LAYER && w.alpha > 0.01 && w.pid !== appPid() && w.pid !== bpid)
-      .map((w) => ({ w, area: inter(w, popup) }))
-      .filter((x) => x.area > 0);
-    assert.ok(ov.length >= 1, 'overlay windows present');
-    const slack = 2 * (popup.w + popup.h);
-    const allowed = intruders.reduce((a, x) => a + x.area, 0);
-    const overlapPopup = ov.reduce((a, o) => a + inter(o, popup), 0);
-    assert.ok(overlapPopup <= allowed + slack, `overlays cover ${overlapPopup} px² of the focus window; only ${allowed} px² of intruders justify it`);
-    for (const { w } of intruders) {
-      const r = { x: Math.max(w.x, popup.x), y: Math.max(w.y, popup.y), w: 0, h: 0 };
-      r.w = Math.min(w.x + w.w, popup.x + popup.w) - r.x;
-      r.h = Math.min(w.y + w.h, popup.y + popup.h) - r.y;
-      const covered = ov.reduce((a, o) => a + inter(o, r), 0);
-      assert.ok(covered >= r.w * r.h - 2 * (r.w + r.h), `${w.owner} (layer ${w.layer}) is visible over the focus window: ${covered}/${r.w * r.h} covered`);
-      console.log(`intruder ${w.owner} layer ${w.layer} over focus window: covered`);
-    }
+    const slack = 2 * (hole.w + hole.h);
+    const overlapHole = ov.reduce((a, o) => a + inter(o, hole), 0);
+    assert.ok(overlapHole <= slack, `overlays cover ${overlapHole} px² of the focus window's visible area ${JSON.stringify(hole)}`);
+    const coveredOutside = ov.reduce((a, o) => a + inter(o, screen) - inter(o, hole), 0);
+    const expected = screen.w * screen.h - inter(hole, screen);
+    assert.ok(Math.abs(coveredOutside - expected) <= 4 * (screen.w + screen.h), `overlays cover ${coveredOutside} outside the hole, expected ≈${expected}`);
     for (const hud of all.filter((w) => w.pid === appPid() && w.layer === OVERLAY_LAYER + 1)) {
       assert.equal(inter(hud, popup), 0, `time pill ${JSON.stringify(hud)} overlaps the focus window ${JSON.stringify(popup)}`);
     }
-    const coveredOutside = ov.reduce((a, o) => a + inter(o, screen) - inter(o, popup), 0);
-    const expected = screen.w * screen.h - inter(popup, screen);
-    assert.ok(Math.abs(coveredOutside - expected) <= 4 * (screen.w + screen.h), `overlays cover ${coveredOutside} outside the focus window, expected ≈${expected}`);
+    // Pixels: the page body (white) must be visible in the middle of the hole.
+    const file = join(ART, `check-${label}.png`);
+    execFileSync('screencapture', ['-x', file]);
+    const region = { x: hole.x + 40, y: hole.y + 120, w: Math.max(20, hole.w - 80), h: Math.max(20, Math.min(200, hole.h - 160)) };
+    const { brightness } = probe<{ brightness: number }>('brightness', file, ...[region.x, region.y, region.w, region.h].map(String));
+    assert.ok(brightness > 0.9, `focus window content not visible in screenshot (brightness ${brightness.toFixed(2)} in ${JSON.stringify(region)})`);
+    // …and the area outside it must be covered (the overlay is a uniform tint, never the white page).
+    if (hole.y > screen.y + 60 || hole.x + hole.w < screen.x + screen.w - 60) {
+      const outside = hole.y > screen.y + 60 ? { x: screen.x + 10, y: screen.y + 30, w: screen.w - 20, h: 20 } : { x: hole.x + hole.w + 10, y: hole.y + 100, w: 30, h: 100 };
+      const o = probe<{ brightness: number }>('brightness', file, ...[outside.x, outside.y, outside.w, outside.h].map(String));
+      assert.ok(o.brightness < 0.85, `area outside the focus window looks uncovered (brightness ${o.brightness.toFixed(2)})`);
+    }
+  };
+  /** No flicker: the visible part of the focus window stays uncovered across ~2 s of samples. */
+  const assertStable = async (popup: Rect) => {
+    const v = screen.visible;
+    const hx = Math.max(popup.x, v.x), hy = Math.max(popup.y, v.y);
+    const hole: Rect = { x: hx, y: hy, w: Math.min(popup.x + popup.w, v.x + v.w) - hx, h: Math.min(popup.y + popup.h, v.y + v.h) - hy };
+    let bad = 0;
+    for (let i = 0; i < 15; i++) {
+      const covered = overlays().reduce((a, o) => a + inter(o, hole), 0);
+      if (covered > hole.w * hole.h * 0.05) bad++;
+      await sleep(130);
+    }
+    assert.equal(bad, 0, `focus window was covered in ${bad}/15 samples (flicker)`);
   };
   const waitActive = (label: string) => waitFor(async () => overlays().length, (n) => n >= 1, 20_000, label);
   const startSession = async (minutes: number) => {
@@ -161,7 +178,8 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const native = windows().find((w) => w.layer === 0 && Math.abs(w.x - popup.x) < 5 && Math.abs(w.y - popup.y) < 5);
     console.log('chrome.windows bounds', popup, 'native', native);
     assert.ok(native, 'chrome.windows bounds equal the window server bounds (identification assumption)');
-    assertHoleAround(popup);
+    assertHoleAround(popup, 'active');
+    await assertStable(popup);
     const front = frontmost();
     assert.equal(front.pid, await browserPid(), `browser is frontmost (got ${JSON.stringify(front)})`);
     const top = windows().find((w) => w.layer === 0);
@@ -218,7 +236,8 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     await sleep(1200);
     const popup = await popupBounds();
     assert.equal(popup.w, 900);
-    assertHoleAround(popup);
+    assertHoleAround(popup, 'moved');
+    await assertStable(popup);
     shot('04-moved');
   });
 

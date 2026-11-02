@@ -60,4 +60,13 @@ final class GeometryTests: XCTestCase {
         XCTAssertEqual(flipped, Rect(x: 10, y: 680, width: 300, height: 200))
         XCTAssertEqual(OverlayGeometry.flip(flipped, primaryHeight: 900), r)
     }
+
+    func testHoleIsClippedToTheVisibleFrameExceptInFullScreen() {
+        let screen = Rect(x: 0, y: 0, width: 1024, height: 768)
+        let visible = Rect(x: 0, y: 25, width: 1024, height: 675) // menu bar + Dock excluded
+        XCTAssertEqual(OverlayGeometry.hole(window: Rect(x: 120, y: 140, width: 900, height: 600), screen: screen, visible: visible),
+                       Rect(x: 120, y: 140, width: 900, height: 560))
+        XCTAssertEqual(OverlayGeometry.hole(window: screen, screen: screen, visible: visible), screen)
+        XCTAssertNil(OverlayGeometry.hole(window: Rect(x: 2000, y: 0, width: 10, height: 10), screen: screen, visible: visible))
+    }
 }
