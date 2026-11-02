@@ -166,13 +166,14 @@ final class OverlayManager {
 
 /// Small, unobtrusive status pill: remaining time, state, and "End…".
 final class HUDPanel: NSPanel {
+    static let height: CGFloat = 22
     private let label = NSTextField(labelWithString: "")
     private let detail = NSTextField(labelWithString: "")
     private let endButton = NSButton(title: "End…", target: nil, action: nil)
     var onEnd: (() -> Void)?
 
     init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 220, height: 30), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 220, height: HUDPanel.height), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         level = hudLevel
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         isOpaque = false
@@ -187,10 +188,10 @@ final class HUDPanel: NSPanel {
         bg.blendingMode = .behindWindow
         bg.state = .active
         bg.wantsLayer = true
-        bg.layer?.cornerRadius = 15
+        bg.layer?.cornerRadius = HUDPanel.height / 2
         bg.layer?.masksToBounds = true
 
-        label.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
+        label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         label.textColor = .labelColor
         detail.font = .systemFont(ofSize: 11)
         detail.textColor = .secondaryLabelColor
@@ -204,7 +205,7 @@ final class HUDPanel: NSPanel {
         let stack = NSStackView(views: [label, detail, endButton])
         stack.orientation = .horizontal
         stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 8)
+        stack.edgeInsets = NSEdgeInsets(top: 1, left: 10, bottom: 1, right: 6)
         stack.translatesAutoresizingMaskIntoConstraints = false
         bg.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -226,11 +227,11 @@ final class HUDPanel: NSPanel {
         label.stringValue = Self.format(remaining)
         detail.stringValue = detailText ?? ""
         detail.isHidden = (detailText ?? "").isEmpty
-        let size = contentView?.fittingSize ?? NSSize(width: 160, height: 30)
+        let size = contentView?.fittingSize ?? NSSize(width: 160, height: HUDPanel.height)
         if abs(size.width - frame.width) > 1 {
             var f = frame
             f.origin.x += f.width - max(120, size.width)
-            f.size = NSSize(width: max(120, size.width), height: 30)
+            f.size = NSSize(width: max(120, size.width), height: HUDPanel.height)
             setFrame(f, display: true)
         }
     }
@@ -247,8 +248,10 @@ final class HUDPanel: NSPanel {
         }
         let f = target.frame
         let w = max(120, frame.width)
-        let origin = NSPoint(x: f.maxX - w - 12, y: f.maxY - 30 - 4)
-        if frame.origin != origin { setFrame(NSRect(origin: origin, size: NSSize(width: w, height: 30)), display: true) }
+        // Inside the menu-bar strip, which windows (other than full-screen ones) never occupy.
+        let strip = max(HUDPanel.height + 2, f.maxY - target.visibleFrame.maxY)
+        let origin = NSPoint(x: f.maxX - w - 10, y: f.maxY - (strip + HUDPanel.height) / 2)
+        if frame.origin != origin { setFrame(NSRect(origin: origin, size: NSSize(width: w, height: HUDPanel.height)), display: true) }
     }
 
     static func format(_ t: TimeInterval) -> String {
