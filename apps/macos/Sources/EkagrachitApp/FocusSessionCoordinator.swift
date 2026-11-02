@@ -395,7 +395,7 @@ final class FocusSessionCoordinator: ObservableObject {
         let ownPid = ProcessInfo.processInfo.processIdentifier
         let patches = info.map {
             FocusPolicy.intruderPatches(focus: $0.bounds, above: above, browserPid: tracker.browserPid, ownPid: ownPid,
-                                        overlayLayer: overlayLevel.rawValue, exemptPids: exemptPids())
+                                        overlayLayer: overlayLevel.rawValue, excludedPids: patchExcludedPids())
         } ?? []
         let assessment = FocusPolicy.assess(
             focus: info,
@@ -422,12 +422,13 @@ final class FocusSessionCoordinator: ObservableObject {
         }
     }
 
-    /// Pids of running system-security UI processes (never covered). Cached for 2 s.
-    private func exemptPids() -> Set<Int32> {
+    /// Pids never patched over: system security UI, and the Dock (handled by
+    /// clipping the hole to each screen's visible frame). Cached for 2 s.
+    private func patchExcludedPids() -> Set<Int32> {
         let now = Date()
         if now.timeIntervalSince(exemptPidsAt) > 2 {
             exemptPidsCache = Set(NSWorkspace.shared.runningApplications
-                .filter { $0.bundleIdentifier.map(FocusPolicy.exemptBundleIDs.contains) ?? false }
+                .filter { app in app.bundleIdentifier.map { FocusPolicy.exemptBundleIDs.contains($0) || $0 == "com.apple.dock" } ?? false }
                 .map(\.processIdentifier))
             exemptPidsAt = now
         }

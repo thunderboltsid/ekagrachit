@@ -142,8 +142,11 @@ final class OverlayManager {
         var rects: [CGRect] = []
         for screen in screens {
             let f = screen.frame
+            let v = screen.visibleFrame
             let sr = Rect(x: f.minX, y: f.minY, width: f.width, height: f.height)
-            for r in OverlayGeometry.coverRects(screen: sr, hole: holeCocoa) {
+            let vr = Rect(x: v.minX, y: v.minY, width: v.width, height: v.height)
+            let screenHole = holeCocoa.flatMap { OverlayGeometry.hole(window: $0, screen: sr, visible: vr) }
+            for r in OverlayGeometry.coverRects(screen: sr, hole: screenHole) {
                 rects.append(CGRect(x: r.x, y: r.y, width: r.width, height: r.height))
             }
         }
