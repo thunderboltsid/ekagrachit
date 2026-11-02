@@ -68,3 +68,31 @@ final class WindowMatchingTests: XCTestCase {
         XCTAssertEqual(assess(focus: .some(nil)), .offscreen)
     }
 }
+
+final class FocusLossDebouncerTests: XCTestCase {
+    func at(_ s: Double) -> Instant { Instant(wall: 1000 + s, mono: UInt64((1000 + s) * 1e9), bootID: "b") }
+
+    func testOtherAppIsAlwaysBouncedBack() {
+        var d = FocusLossDebouncer()
+        for t in stride(from: 0.0, through: 10, by: 0.5) {
+            XCTAssertEqual(d.next(.lost(reason: "x"), frontmostIsBrowser: false, now: at(t)), .closeHoleAndRefocus)
+        }
+    }
+
+    func testStuckWindowAboveFocusDoesNotLockUserOut() {
+        var d = FocusLossDebouncer(stuckAfter: 2.5)
+        XCTAssertEqual(d.next(.lost(reason: "x"), frontmostIsBrowser: true, now: at(0)), .closeHoleAndRefocus)
+        XCTAssertEqual(d.next(.lost(reason: "x"), frontmostIsBrowser: true, now: at(2)), .closeHoleAndRefocus)
+        XCTAssertEqual(d.next(.lost(reason: "x"), frontmostIsBrowser: true, now: at(2.6)), .openHole)
+        XCTAssertEqual(d.next(.focused, frontmostIsBrowser: true, now: at(3)), .openHole)
+        // Resets: a new loss is shielded again.
+        XCTAssertEqual(d.next(.lost(reason: "x"), frontmostIsBrowser: true, now: at(4)), .closeHoleAndRefocus)
+    }
+
+    func testOtherStates() {
+        var d = FocusLossDebouncer()
+        XCTAssertEqual(d.next(.exempt, frontmostIsBrowser: false, now: at(0)), .standAside)
+        XCTAssertEqual(d.next(.offscreen, frontmostIsBrowser: true, now: at(0)), .coverAllAndRefocus)
+        XCTAssertEqual(d.next(.ownUI, frontmostIsBrowser: false, now: at(0)), .openHole)
+    }
+}

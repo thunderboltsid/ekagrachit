@@ -104,3 +104,46 @@ public enum FocusPolicy {
         return .focused
     }
 }
+
+/// Turns successive focus assessments into overlay actions, with one safety
+/// valve: if focus stays "lost" while the browser itself is frontmost for
+/// longer than `stuckAfter` (some window we cannot dislodge sits above the
+/// focus window), the hole is reopened rather than locking the user out of
+/// their own document. Everything outside the focus window stays covered.
+public struct FocusLossDebouncer: Sendable {
+    public enum Action: Equatable, Sendable {
+        case openHole
+        case closeHoleAndRefocus
+        case coverAllAndRefocus
+        case standAside
+    }
+
+    public var stuckAfter: TimeInterval
+    private var lostSince: Instant?
+
+    public init(stuckAfter: TimeInterval = 2.5) {
+        self.stuckAfter = stuckAfter
+    }
+
+    public mutating func next(_ assessment: FocusAssessment, frontmostIsBrowser: Bool, now: Instant) -> Action {
+        switch assessment {
+        case .focused, .ownUI:
+            lostSince = nil
+            return .openHole
+        case .exempt:
+            lostSince = nil
+            return .standAside
+        case .offscreen:
+            lostSince = nil
+            return .coverAllAndRefocus
+        case .lost:
+            guard frontmostIsBrowser else {
+                lostSince = nil
+                return .closeHoleAndRefocus
+            }
+            let since = lostSince ?? now
+            lostSince = since
+            return now.seconds(since: since) >= stuckAfter ? .openHole : .closeHoleAndRefocus
+        }
+    }
+}

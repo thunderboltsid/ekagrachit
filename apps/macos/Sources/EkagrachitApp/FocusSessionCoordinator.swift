@@ -63,6 +63,7 @@ final class FocusSessionCoordinator: ObservableObject {
     private var locateTimer: Timer?
     private var hotKey: HotKey?
     private var lastRefocus = Date.distantPast
+    private var focusDebouncer = FocusLossDebouncer()
     private var ticks = 0
     private var observers: [NSObjectProtocol] = []
     private var cancellables: Set<AnyCancellable> = []
@@ -387,23 +388,20 @@ final class FocusSessionCoordinator: ObservableObject {
             browserPid: tracker.browserPid,
             ownPid: ProcessInfo.processInfo.processIdentifier
         )
-        switch assessment {
-        case .focused:
+        switch focusDebouncer.next(assessment, frontmostIsBrowser: front?.processIdentifier == tracker.browserPid, now: clock.now()) {
+        case .openHole:
             overlays.setSuspended(false)
             overlays.show(hole: info?.bounds, shielded: false)
-        case .lost:
+        case .closeHoleAndRefocus:
             overlays.setSuspended(false)
             overlays.show(hole: info?.bounds, shielded: true) // close the hole first, then restore
             refocus(force: false)
-        case .offscreen:
+        case .coverAllAndRefocus:
             overlays.setSuspended(false)
             overlays.show(hole: nil, shielded: true)
             refocus(force: false)
-        case .exempt:
+        case .standAside:
             overlays.setSuspended(true)
-        case .ownUI:
-            overlays.setSuspended(false)
-            overlays.show(hole: info?.bounds, shielded: false)
         }
     }
 
