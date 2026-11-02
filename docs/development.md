@@ -1,0 +1,51 @@
+# Development
+
+## Layout and boundaries
+- `apps/macos/Sources/EkagrachitCore` — **no AppKit**. Everything that can be
+  decided without the OS lives here and is unit-tested on macOS and Linux:
+  `SessionStateMachine` (pure reducer: `(state, event, now) -> (state, effects)`),
+  `Deadline`, `Protocol`, `Framing`, `Geometry`, `WindowMatching`/`FocusPolicy`,
+  `SessionStore`, `UnixSocket`, `BridgeServer`.
+- `apps/macos/Sources/EkagrachitApp` — the thin impure shell:
+  `FocusSessionCoordinator` turns system/bridge input into events and executes
+  effects; `OverlayManager`, `WindowTracker`, `ConfirmEndPanel`, `HotKey`, SwiftUI views.
+- `apps/macos/Sources/EkagrachitHost` — stdio relay; contains no session logic.
+- `extensions/chrome/src/shared` — pure TS (identity, rules, protocol, reconcile).
+- `extensions/chrome/src/background` — `FocusController` (single serial queue
+  for all state mutations) and `NativeBridge`.
+
+Session state exists in exactly one authoritative place (the app's
+`MachineState`); the extension mirrors the desired session and reconciles.
+
+## Common tasks
+```bash
+# Extension
+cd extensions/chrome
+npm ci
+npm run build          # -> dist/ (load unpacked)
+npm run typecheck && npm test
+HEADED=1 npm run test:e2e        # macOS / Linux desktop
+HEADED=1 xvfb-run -a npm run test:e2e   # headless Linux box
+
+# Native
+cd apps/macos
+swift build            # core + host (+ app on macOS)
+swift test
+swift run Ekagrachit   # run the app unbundled (Accessibility is granted to the terminal in that case)
+../../scripts/build-app.sh   # bundle
+```
+
+Open `apps/macos/Package.swift` in Xcode to edit/debug the app.
+
+## Iterating on the bridge locally
+After `install.sh`, the host manifest points to the installed app's host. To
+use a debug build instead, edit the manifest's `path` to
+`apps/macos/.build/debug/ekagrachit-host` and reload the extension. Environment
+overrides: `EKAGRACHIT_SOCKET` (socket path), `EKAGRACHIT_SUPPORT_DIR` (state dir).
+
+## Conventions
+- Swift 5 language mode, `@MainActor` for AppKit-facing types; bridge callbacks
+  arrive on the main queue.
+- TypeScript uses only erasable syntax (runs directly under Node's type stripping for tests).
+- No runtime dependencies in the extension; dev dependencies: typescript, esbuild, playwright, @types.
+- Every new escape path gets an E2E test (extension) or a `FocusPolicy`/state-machine test (native).
