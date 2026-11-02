@@ -80,6 +80,8 @@ export class FocusController {
   private armTimer: Timer | null = null;
   private expiryTimer: Timer | null = null;
   private lastSync: { epoch: string; seq: number } | null = null;
+  /** True once the app acknowledged our hello on the current connection. */
+  appReady = false;
   private pendingStarts = new Map<string, (r: { ok: boolean; error?: string }) => void>();
   lastError: string | null = null;
 
@@ -179,7 +181,7 @@ export class FocusController {
       session: r
         ? { sid: r.sid, owner: r.owner, title: describe(r.policy.primary), target: r.target, endsAt: r.endsAt, armed: r.armed }
         : null,
-      bridge: this.bridge.status,
+      bridge: this.bridge.status === 'app_connected' && !this.appReady ? 'connecting' : this.bridge.status,
       bridgeError: this.bridge.lastError,
       lastError: this.lastError,
     };
@@ -195,6 +197,11 @@ export class FocusController {
     if (this.rec) return { ok: false, error: 'A focus session is already active.' };
 
     if (this.bridge.appConnected) {
+      // Requests must follow our hello on the wire, or the app ignores them.
+      const deadline = Date.now() + 5_000;
+      while (!this.appReady && this.bridge.appConnected && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+    }
+    if (this.bridge.appConnected && this.appReady) {
       const cid = newId();
       const result = new Promise<{ ok: boolean; error?: string }>((resolve) => {
         this.pendingStarts.set(cid, resolve);
@@ -364,6 +371,7 @@ export class FocusController {
     } else {
       this.lastSync = null;
     }
+    this.appReady = false;
     await this.updateBadge();
   }
 
@@ -374,7 +382,9 @@ export class FocusController {
       case 'hello_ack':
         if (msg.protocol !== PROTOCOL_VERSION) {
           this.lastError = `Protocol mismatch: app speaks v${msg.protocol}, extension v${PROTOCOL_VERSION}. Update both components.`;
+          return;
         }
+        this.appReady = true;
         return;
       case 'error':
         this.lastError = `App: ${msg.message || msg.code}`;

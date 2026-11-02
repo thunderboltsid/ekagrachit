@@ -35,6 +35,7 @@ class FakeApp {
   seq = 0;
   private buf = Buffer.alloc(0);
   autoAck = true;
+  ackDelayMs = 0;
 
   readonly path: string;
   constructor(path: string) {
@@ -59,8 +60,10 @@ class FakeApp {
       this.buf = this.buf.subarray(4 + len);
       this.received.push(msg);
       if (msg.type === 'hello' && this.autoAck) {
-        this.send({ type: 'hello_ack', protocol: 1, appVersion: 'fake', epoch: this.epoch });
-        this.sync(null);
+        setTimeout(() => {
+          this.send({ type: 'hello_ack', protocol: 1, appVersion: 'fake', epoch: this.epoch });
+          this.sync(null);
+        }, this.ackDelayMs);
       }
     }
   }
@@ -219,6 +222,22 @@ describe('Native bridge: extension <-> ekagrachit-host <-> app', { skip: !exists
     assert.equal(r.ok, false);
     assert.match(r.error!, /Accessibility/);
     assert.equal(await session(h), null, 'nothing started without the app');
+  });
+
+  test('regression: a start issued right after (re)connecting waits for the handshake', async () => {
+    await app.down();
+    await waitFor(() => inSW(h, () => (globalThis as any).__ekagrachit.bridge.status as string), (s) => s !== 'app_connected', 8000, 'app gone');
+    app.received = [];
+    app.ackDelayMs = 700;
+    await app.start();
+    await waitFor(() => inSW(h, () => (globalThis as any).__ekagrachit.bridge.status as string), (s) => s === 'app_connected', 8000, 'host reconnected');
+    const pending = inSW(h, (t) => (globalThis as any).__ekagrachit.requestStart(t, 25), DOC_A);
+    const req = await app.waitFor((m) => m.type === 'start_request', 'start_request');
+    const helloIdx = app.received.findIndex((m) => m.type === 'hello');
+    assert.ok(helloIdx >= 0 && helloIdx < app.received.indexOf(req), 'hello precedes the request on the wire');
+    app.send({ type: 'start_result', cid: req.cid, ok: false, error: 'no' });
+    assert.equal(((await pending) as { ok: boolean }).ok, false);
+    app.ackDelayMs = 0;
   });
 
   test('ending from the browser is reported to the app and never resurrected', async () => {
