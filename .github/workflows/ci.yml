@@ -75,6 +75,41 @@ jobs:
       - name: Build extension
         working-directory: extensions/chrome
         run: npm ci && npm run build
+      - name: Build desktop test probe
+        working-directory: apps/macos
+        run: swift build -c release --product ekagrachit-probe
+      - name: Runner capabilities (SIP, TCC, Accessibility)
+        run: |
+          csrutil status || true
+          PROBE=apps/macos/.build/release/ekagrachit-probe
+          APPBIN="$PWD/apps/macos/build/Ekagrachit.app/Contents/MacOS/Ekagrachit"
+          NOW=$(date +%s)
+          # Try to grant Accessibility to the app and the probe (works only where the
+          # system TCC database is writable, e.g. SIP disabled on CI images).
+          for client in "$APPBIN" "$PWD/$PROBE" "/usr/local/bin/node" "$(command -v node)"; do
+            sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \
+              "INSERT OR REPLACE INTO access VALUES('kTCCServiceAccessibility','$client',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$NOW,NULL,NULL,'UNUSED',$NOW);" \
+              && echo "granted AX to $client" || echo "could not grant AX to $client"
+          done
+          "$PROBE" env
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Desktop E2E (real app + real Chromium + extension + host)
+        working-directory: extensions/chrome
+        env:
+          HEADED: '1'
+          EK_APP: ${{ github.workspace }}/apps/macos/build/Ekagrachit.app
+          EK_PROBE: ${{ github.workspace }}/apps/macos/.build/release/ekagrachit-probe
+          EK_ARTIFACTS: ${{ github.workspace }}/desktop-artifacts
+        run: |
+          npx playwright install chromium
+          npm run test:macos
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-e2e-screenshots
+          path: desktop-artifacts
       - name: Package
         run: |
           mkdir -p dist

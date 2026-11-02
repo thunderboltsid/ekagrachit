@@ -42,3 +42,4 @@ build/
 DerivedData/
 *.xcodeproj/xcuserdata/
 .DS_Store
+extensions/chrome/test-artifacts/
