@@ -159,3 +159,21 @@ requests are no-ops. Fully specified and tested in
 | Stale/foreign messages | Dropped by validation, sid matching and epoch/seq ordering (unit + E2E tested). |
 | Display connected/disconnected | Overlay layout recomputed on `didChangeScreenParameters`. |
 | Sleep/wake | Deadline uses sleep-inclusive clocks; wake triggers an immediate tick. |
+
+## Implementation checklist
+
+Legend: ✅ verified by automated tests · 🛠 implemented, compiled in macOS CI, needs a physical-Mac check (docs/testing.md) · ⏳ not done
+
+| Item | Status |
+|---|---|
+| Spike 1: MV3 popup with existing profile | ✅ Chromium (Playwright); real Google sign-in reuse is inherent to `windows.create` in the same profile — confirm on Mac |
+| Spike 2: navigation isolation (prevent vs. reverse) | ✅ |
+| Spike 3: overlay with one interactive external window | 🛠 |
+| Spike 4: two-way native messaging, host manifest, key-pinned extension ID | ✅ (Linux, real host binary) + macOS CI smoke test with the real app |
+| M1 browser-only prototype | ✅ |
+| M2 native shell (menu bar UI, state machine, timer, permissions, safe exit) | ✅ state machine/timer; 🛠 UI, permissions, hot key, hold-to-end |
+| M3 desktop overlays (multi-display, tracking, restore) | 🛠 (geometry ✅) |
+| M4 integration (sync, acks, timeouts, stale ids, reconnection) | ✅ protocol & extension side; ✅ app handshake/adoption/end on macOS CI; 🛠 window identification |
+| M5 hardening (sleep, restarts, disconnects, races) | ✅ logic; 🛠 OS-level behaviour |
+| M6 packaging (build/install scripts, CI, unsigned artifact, troubleshooting) | ✅ |
+| Signed/notarized release, app icon | ⏳ |

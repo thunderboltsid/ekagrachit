@@ -434,7 +434,7 @@ final class FocusSessionCoordinator: ObservableObject {
 
     private func observeSystem() {
         let ws = NSWorkspace.shared.notificationCenter
-        let evaluate: (Notification) -> Void = { [weak self] _ in MainActor.assumeIsolated { self?.evaluateFocus() } }
+        let evaluate: @Sendable (Notification) -> Void = { [weak self] _ in MainActor.assumeIsolated { self?.evaluateFocus() } }
         observers.append(ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main, using: evaluate))
         observers.append(ws.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main, using: evaluate))
         observers.append(ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
