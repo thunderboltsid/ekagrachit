@@ -26,21 +26,37 @@ stopped.
 | Cmd+Q in Chrome | **Possible** — Chrome quits (after its own "hold ⌘Q" warning if enabled). The app goes to *degraded*, covers the screen and ends the session after 120 s if Chrome does not come back. | |
 | Disabling/removing the extension in chrome://extensions | **Possible** (requires reaching that page, which is blocked during a session) | |
 
-## Desktop (macOS) — implemented, built in CI, **requires verification on a physical Mac**
+## Desktop (macOS) — verified on a macOS 15 runner by `tests/macos/desktop.test.ts`
+Real Ekagrachit.app + real Chromium (Chrome for Testing) + extension + host,
+observed through the window server and checked with screenshot pixels.
+
 | Attempt | Result |
 |---|---|
-| Clicking outside the focus window, the Dock, the desktop, the menu bar | **Prevented**: covered by overlay panels above Dock/menu-bar level; clicks are absorbed and refocus Chrome |
-| Cmd+Tab to Slack/Terminal | The switcher still appears (system UI). Switching is **reversed**: the hole closes immediately on activation and the focus window is raised again. The other app's window is never visible outside the focus window's rectangle; inside it, at most one 100 ms poll interval |
-| Another Chrome window brought to front | **Reversed** (same). Safety valve: if some window above the focus window cannot be dislodged for 2.5 s while Chrome is frontmost, the hole reopens instead of locking you out of your document |
-| Switching Spaces (Ctrl+→, swipe) | Overlays are on every Space; the new Space is fully covered and the focus window is re-activated (macOS switches back to its Space) |
-| Mission Control / App Exposé | **Possible to open** (it draws above all apps); choosing another window there is **reversed** |
-| Spotlight / Launchpad | Spotlight's panel can open; launching an app is **reversed** |
+| Clicking outside the focus window, the Dock, the desktop, the menu bar | **Prevented**: covered by overlay panels above Dock/menu-bar level; clicks are absorbed (tested with synthetic clicks) |
+| Focus window moved/resized over the Dock area | The Dock strip stays covered (the uncovered area is clipped to the screen's visible frame); the hole follows moves (tested) |
+| Another app's floating panel above the focus window | Its intersection with the focus window is covered (unit-tested logic) |
+| Switching to another app (the outcome of Cmd+Tab) | **Reversed** in ~125–145 ms (measured); the hole closes first. The Cmd+Tab switcher itself still appears |
+| Real Cmd+T / Cmd+N keystrokes in the focus window | Nothing is left open; focus window stays on top (tested with synthetic keystrokes) |
+| Another browser window brought to front | **Reversed** (tested). Safety valve: a window that cannot be dislodged for 2.5 s while Chrome is frontmost reopens the hole instead of locking you out |
+| Minimising the focus window | **Reversed** (tested). Cmd+H uses the same path (unhide + raise) |
+| Full-screen focus window (its own Space); switching away from that Space | **Reversed** in ~125 ms; stays full screen (tested) |
+| Mission Control | **Possible to open**; leaving it returns to the focus window (tested). Picking another window in it is the app-switch case |
+| Stage Manager | Works: the hole follows the window Stage Manager repositions; strips stay covered (tested) |
+| Emergency exit ⌃⌥⌘E | Escape cancels, a short press does nothing, a 2.5 s hold ends the session and removes every overlay (tested) |
+| Ekagrachit killed mid-session | Overlays vanish with the process; browser rules continue; relaunch resumes the same session (tested) |
+| Expiry | Overlays removed, focus window closed, desktop restored (tested) |
+| Spotlight | Its panel can open; launching an app is the app-switch case |
 | Notification banners | **Possible** unless Do Not Disturb is enabled (see below) |
-| Minimising / hiding Chrome (Cmd+M / Cmd+H) | **Reversed** (unminimise/unhide) |
-| Full-screen focus window | supported: overlays join its Space; other displays stay covered |
-| Stage Manager | Untested. Overlays are not managed by Stage Manager; strips may be covered. |
 | System dialogs (password prompts, permission requests, System Settings) | deliberately **not blocked**: overlays step aside while they are frontmost |
-| Force Quit (Cmd+Opt+Esc), Activity Monitor kill | **Possible** by design. Overlays die with the process; nothing is left behind |
+| Force Quit (Cmd+Opt+Esc), Activity Monitor kill | **Possible** by design. Nothing is left behind |
+| Auto-hidden Dock revealed by moving the pointer to the screen edge | The revealed Dock can appear over the focus window's edge; clicking an app there is the app-switch case (reversed) |
+
+### Not covered by automated tests
+These need hardware or accounts CI does not have:
+- **Two or more displays.** The runner has one display. The geometry is unit-tested for multi-display layouts.
+- **Real sleep/wake.** Deadline semantics are unit-tested; on wake the app ticks immediately.
+- **A real Google account and Google Docs.** Tests use a local stand-in served as `docs.google.com`.
+- **Branded Google Chrome.** Tests use Chrome for Testing, which has the same extension APIs. Branded Chrome only differs in requiring "Load unpacked" by hand.
 
 ## Platform constraints
 - **Focus / Do Not Disturb**: macOS has no public API for apps to toggle Focus.
