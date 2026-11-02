@@ -45,8 +45,10 @@ public enum FocusAssessment: Equatable, Sendable {
     case focused
     /// Something else is in front: cover the hole and bring the focus window back.
     case lost(reason: String)
-    /// A system/security UI or Ekagrachit itself is frontmost: stand aside temporarily.
+    /// A system/security UI is frontmost: stand aside (hide overlays) until it is gone.
     case exempt
+    /// Ekagrachit's own UI (confirmation panel, menu) is frontmost: keep overlays, don't fight.
+    case ownUI
     /// The focus window isn't on the current Space/screen (minimised, hidden, other Space).
     case offscreen
 }
@@ -84,7 +86,7 @@ public enum FocusPolicy {
         ownPid: Int32
     ) -> FocusAssessment {
         if let bid = frontmostBundleID, exemptBundleIDs.contains(bid) { return .exempt }
-        if frontmostPid == ownPid { return .exempt }
+        if frontmostPid == ownPid { return .ownUI }
         guard let focus else { return .offscreen }
         guard focus.onScreen else { return .offscreen }
         if let pid = frontmostPid, pid != browserPid {

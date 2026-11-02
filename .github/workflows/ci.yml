@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    name: Chrome extension (unit + Chromium E2E)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: extensions/chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extensions/chrome/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build native host (for the full-chain bridge test)
+        working-directory: apps/macos
+        run: swift build --product ekagrachit-host
+      - run: npx playwright install --with-deps chromium
+      - name: E2E (headed under Xvfb so window focus is real)
+        run: HEADED=1 xvfb-run -a npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ekagrachit-chrome-extension
+          path: extensions/chrome/dist
+
+  core-linux:
+    name: Swift core + host (Linux)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/macos
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build
+      - run: swift test
+
+  macos:
+    name: macOS app (build, test, bundle)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: sw_vers && swift --version
+      - name: Test core
+        working-directory: apps/macos
+        run: swift build && swift test
+      - name: Build app bundle (universal, ad-hoc signed)
+        run: UNIVERSAL=1 scripts/build-app.sh
+      - name: Smoke-test bundle
+        run: |
+          APP=apps/macos/build/Ekagrachit.app
+          lipo -info "$APP/Contents/MacOS/Ekagrachit"
+          lipo -info "$APP/Contents/MacOS/ekagrachit-host"
+          plutil -lint "$APP/Contents/Info.plist"
+          # The host must exit cleanly when Chrome closes stdin.
+          EKAGRACHIT_SOCKET=/tmp/ek-ci.sock "$APP/Contents/MacOS/ekagrachit-host" chrome-extension://x/ </dev/null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build extension
+        working-directory: extensions/chrome
+        run: npm ci && npm run build
+      - name: Package
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent apps/macos/build/Ekagrachit.app dist/Ekagrachit-macOS-unsigned.zip
+          (cd extensions/chrome && zip -qr ../../dist/ekagrachit-chrome-extension.zip dist)
+          cp scripts/install.sh scripts/uninstall.sh scripts/doctor.sh dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ekagrachit-macos-unsigned
+          path: dist

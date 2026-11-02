@@ -58,7 +58,7 @@ final class WindowMatchingTests: XCTestCase {
 
     func testSecurityUIIsExempt() {
         XCTAssertEqual(assess(pid: 1, bundle: "com.apple.SecurityAgent"), .exempt)
-        XCTAssertEqual(assess(pid: me, bundle: "io.github.thunderboltsid.ekagrachit"), .exempt)
+        XCTAssertEqual(assess(pid: me, bundle: "io.github.thunderboltsid.ekagrachit"), .ownUI)
     }
 
     func testOffscreenOrMissing() {
