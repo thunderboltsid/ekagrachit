@@ -1,0 +1,25 @@
+{
+  "name": "ekagrachit-chrome-extension",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test 'tests/unit/*.test.ts'",
+    "test:e2e": "node scripts/build.mjs && node --test --test-concurrency=1 --test-timeout=60000 --test-reporter=spec 'tests/e2e/*.test.ts'",
+    "package": "node scripts/build.mjs --zip",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.7",
+    "@types/node": "^22.18.0",
+    "esbuild": "0.25.12",
+    "playwright": "1.63.0",
+    "typescript": "5.9.3"
+  }
+}

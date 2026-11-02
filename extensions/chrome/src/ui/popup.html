@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Ekagrachit</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Ekagrachit</h1>
+      <span id="bridge" class="status" role="status"></span>
+    </header>
+
+    <form id="start" hidden>
+      <label for="url">What are you focusing on?</label>
+      <input id="url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+             placeholder="https://docs.google.com/document/d/…" required>
+      <fieldset>
+        <legend>Duration</legend>
+        <div class="durations" role="radiogroup">
+          <button type="button" role="radio" data-min="15">15m</button>
+          <button type="button" role="radio" data-min="25" aria-checked="true">25m</button>
+          <button type="button" role="radio" data-min="45">45m</button>
+          <button type="button" role="radio" data-min="60">60m</button>
+          <input id="custom" type="number" min="1" max="480" placeholder="Custom" aria-label="Custom minutes">
+        </div>
+      </fieldset>
+      <button id="go" type="submit" class="primary">Start Focus</button>
+      <p id="mode" class="hint"></p>
+    </form>
+
+    <section id="active" hidden>
+      <p class="label">Focusing on</p>
+      <p id="title" class="title"></p>
+      <p id="remaining" class="remaining" aria-live="off"></p>
+      <p id="owner" class="hint"></p>
+      <button id="end" type="button" class="hold" aria-describedby="end-hint">
+        <span class="fill"></span><span class="text">Hold to end session</span>
+      </button>
+      <p id="end-hint" class="hint">Press and hold for 2 seconds (mouse, Space or Enter).</p>
+    </section>
+
+    <p id="error" class="error" role="alert" hidden></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
