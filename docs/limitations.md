@@ -13,7 +13,7 @@ stopped.
 ## Browser (verified in Chromium by automated tests unless noted)
 | Attempt | Result | Mechanism |
 |---|---|---|
-| Link / typed / scripted navigation of the focus tab to another doc or site | **Prevented** (request blocked before it is sent), then the target is reloaded | DNR main-frame rules |
+| Link / typed / scripted navigation of the focus tab to another doc or site | **Prevented** (request blocked before it is sent), then the target is reloaded; the link is saved for later | DNR main-frame rules |
 | Link with `target=_blank`, `window.open`, Cmd+T, Cmd+N, reopen-closed-tab, settings/history pages | Network load **prevented**; tab/window **closed** (a new-tab page may flash inside Chrome) | DNR `excludedTabIds` + `tabs.onCreated` |
 | SPA `pushState` / bfcache Back to another resource | **Reversed** | `webNavigation` + identity policy |
 | Focusing another existing Chrome window | **Reversed** | `windows.onFocusChanged` (needs a real display: verified headed under Xvfb) |

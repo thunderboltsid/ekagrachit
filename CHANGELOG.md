@@ -14,11 +14,15 @@ First release.
   blocked before any request is made; new tabs and windows are closed.
 - **Saved for later.** Every link you reach for during a session is kept and
   listed when it ends, so following a thought never costs you the thread.
+- **Starts where you are.** The menu offers your current Chrome tab; if
+  Chrome isn't running, Ekagrachit opens it and starts as soon as it's ready.
 - **Deliberate exit.** ⌃⌥⌘E (or End… in the time pill), then hold for 2.5 s.
 - **Robust.** Sessions survive sleep, browser restarts and app restarts;
   ending is always clean and never closes pages with unsaved changes without asking.
 - **Easy setup.** Drag to Applications; the app registers itself with Chrome
   and guides you through loading the extension and granting Accessibility.
+- **Calm feedback.** A small pill shows the time left, says what was saved
+  for later, and gives a heads-up in the last minute; an optional chime marks the end.
 - **Private.** Everything stays on your Mac. No account, no telemetry.
 
 Requires macOS 26 Tahoe on Apple Silicon and Google Chrome.
