@@ -95,7 +95,7 @@ export const MAX_PARKED = 50;
 export function parkUrl(list: string[], rawUrl: string, policy: FocusPolicy, max = MAX_PARKED): string | null {
   let url: URL;
   try {
-    url = new URL(rawUrl);
+    url = unwrapRedirect(new URL(rawUrl));
   } catch {
     return null;
   }
@@ -114,4 +114,24 @@ export function parkUrl(list: string[], rawUrl: string, policy: FocusPolicy, max
 /** "Design review - Google Docs" -> "Design review". */
 export function cleanTitle(raw: string): string {
   return raw.replace(/\s+[-–—]\s+(Google (Docs|Sheets|Slides|Forms|Drawings|Drive)|Jira|GitHub)$/i, '').trim().slice(0, 120);
+}
+
+/**
+ * Google Docs/Sheets/Slides route external links through
+ * https://www.google.com/url?q=<target>; keep the real destination.
+ */
+export function unwrapRedirect(url: URL): URL {
+  const host = url.hostname.replace(/^www\./, '');
+  if ((host === 'google.com' || /^google\.[a-z.]+$/.test(host)) && url.pathname === '/url') {
+    const target = url.searchParams.get('q') ?? url.searchParams.get('url');
+    if (target) {
+      try {
+        const t = new URL(target);
+        if (t.protocol === 'https:' || t.protocol === 'http:') return t;
+      } catch {
+        /* not a URL: keep the wrapper */
+      }
+    }
+  }
+  return url;
 }

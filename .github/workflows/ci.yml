@@ -74,13 +74,13 @@ jobs:
           test -f "$APP/Contents/Resources/ChromeExtension/manifest.json"
           # The host must exit cleanly when Chrome closes stdin.
           EKAGRACHIT_SOCKET=/tmp/ek-ci.sock "$APP/Contents/MacOS/ekagrachit-host" chrome-extension://x/ </dev/null
+      - name: Build desktop test probe
+        working-directory: apps/macos
+        run: swift build -c release --product ekagrachit-probe
       - name: Launch the real app and drive it through the real host
         env:
           EK_ARTIFACTS: ${{ github.workspace }}/desktop-artifacts
         run: mkdir -p desktop-artifacts && node scripts/ci-macos-smoke.mjs apps/macos/build/Ekagrachit.app
-      - name: Build desktop test probe
-        working-directory: apps/macos
-        run: swift build -c release --product ekagrachit-probe
       - name: Runner capabilities (SIP, TCC, Accessibility)
         run: |
           csrutil status || true

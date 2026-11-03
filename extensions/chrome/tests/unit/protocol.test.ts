@@ -101,3 +101,13 @@ test('document titles are shown without the product suffix', () => {
   assert.equal(cleanTitle('Q3 plan – Google Sheets'), 'Q3 plan');
   assert.equal(cleanTitle('Fix race in bridge · Pull Request #12 · org/repo'), 'Fix race in bridge · Pull Request #12 · org/repo');
 });
+
+test('saved for later unwraps Google Docs link redirects', () => {
+  const t = parseTarget('https://docs.google.com/document/d/DOC_A/edit');
+  if (!t.ok) throw new Error();
+  const policy = { primary: t.identity, aliases: [] };
+  const list: string[] = [];
+  assert.equal(parkUrl(list, 'https://www.google.com/url?q=https://acme.atlassian.net/browse/X-9&sa=D&source=editors&ust=1', policy), 'acme.atlassian.net');
+  assert.deepEqual(list, ['https://acme.atlassian.net/browse/X-9']);
+  assert.equal(parkUrl(list, 'https://www.google.com/url?q=javascript:alert(1)', policy), 'www.google.com', 'non-http targets are not unwrapped');
+});

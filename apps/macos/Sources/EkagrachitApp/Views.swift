@@ -238,7 +238,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460)
+        .frame(width: 480, height: 600)
         .padding(.vertical, 8)
         .onAppear { launchAtLogin = settings.launchAtLogin }
     }
@@ -279,7 +279,7 @@ struct SetupView: View {
                  title: "Accessibility permission",
                  detail: coordinator.accessibilityTrusted
                     ? "Lets Ekagrachit bring the focus window back when you switch away."
-                    : "Lets Ekagrachit bring the focus window back when you switch away. Nothing else is read or controlled.") {
+                    : "Lets Ekagrachit bring the focus window back when you switch away. Nothing else is read or controlled. If Ekagrachit is already listed and switched on (for example after an update), remove it with − and add it again.") {
                 if !coordinator.accessibilityTrusted {
                     Button("Open System Settings") {
                         Permissions.requestAccessibility()

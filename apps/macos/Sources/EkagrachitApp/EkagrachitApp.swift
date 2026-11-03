@@ -74,7 +74,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// other apps when the app is menu-bar-only.
     func showSettings() {
         if settingsWindow == nil {
-            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            // A grouped Form scrolls and has no intrinsic height: size the window explicitly.
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 600), styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.title = "Ekagrachit Settings"
             w.isReleasedWhenClosed = false
             w.contentView = NSHostingView(rootView: SettingsView(coordinator: coordinator, settings: coordinator.settings))

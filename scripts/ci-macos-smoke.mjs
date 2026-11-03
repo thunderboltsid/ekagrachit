@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process';
 import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const app = resolve(process.argv[2] ?? 'apps/macos/build/Ekagrachit.app');
 const support = mkdtempSync(join(tmpdir(), 'ek-smoke-'));
@@ -142,6 +142,14 @@ if (process.env.EK_ARTIFACTS) {
     });
     await new Promise((r) => setTimeout(r, 6500));
     await new Promise((r) => spawn('screencapture', ['-x', join(process.env.EK_ARTIFACTS, `${name}.png`)]).on('exit', r));
+    // The Settings window must have real content (a grouped Form once collapsed it to 0 pt).
+    const probeBin = join(dirname(app), '..', '.build', 'release', 'ekagrachit-probe');
+    if (existsSync(probeBin)) {
+      const { execFileSync } = await import('node:child_process');
+      const wins = JSON.parse(execFileSync(probeBin, ['windows'], { encoding: 'utf8' })).filter((w) => w.pid === p.pid && w.layer === 0);
+      console.log(name, 'app windows:', JSON.stringify(wins.map((w) => [w.w, w.h])));
+      if (!wins.some((w) => w.h >= 300 && w.w >= 400)) fail(`${name}: no Settings window with content`);
+    }
     p.kill();
     await new Promise((r) => setTimeout(r, 500));
   }
