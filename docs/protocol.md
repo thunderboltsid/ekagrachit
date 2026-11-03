@@ -21,7 +21,7 @@ Session ids (`sid`) are 8–64 chars of `[A-Za-z0-9_-]`.
 | type | fields | meaning |
 |---|---|---|
 | `hello` | `protocol`, `extVersion`, `extensionId`, `standalone: {sid,target,remainingMs}|null` | Sent when `host_status.appConnected` becomes true. A running browser-only session is offered for adoption. |
-| `show_menu` | — | The extension's toolbar button was clicked: the app opens its menu (which offers the active tab). The extension has no start or end UI of its own. |
+| `show_menu` | `url?` | The extension's toolbar button was clicked: the app opens its menu, offering `url` (the http(s) tab the button was clicked in). The extension has no start or end UI of its own. |
 | `start_request` | `cid`, `target`, `durationMinutes` | Automation only (the worker's test hook): start a session through the app. Answered by `start_result`. |
 | `end_request` | `sid` | Automation only: end a session through the app. |
 | `window_ready` | `sid`, `windowId`, `tabId`, `bounds{left,top,width,height}`, `state` | Focus window exists and is enforced. Re-sent after recreation, re-homing, reconnect. |

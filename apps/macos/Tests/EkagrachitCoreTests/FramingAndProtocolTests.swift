@@ -54,7 +54,10 @@ final class ProtocolTests: XCTestCase {
                        .violation(sid: sid, kind: "tab_closed", host: nil))
         XCTAssertEqual(AppInbound.parse(json(["type": "active_tab", "cid": "c1", "url": "https://x.example/"])), .activeTab(cid: "c1", url: "https://x.example/"))
         XCTAssertNil(AppInbound.parse(json(["type": "active_tab", "cid": "c1"])))
-        XCTAssertEqual(AppInbound.parse(json(["v": 1, "type": "show_menu"])), .showMenu)
+        XCTAssertEqual(AppInbound.parse(json(["v": 1, "type": "show_menu"])), .showMenu(url: nil))
+        XCTAssertEqual(AppInbound.parse(json(["type": "show_menu", "url": "https://docs.google.com/document/d/x/edit"])),
+                       .showMenu(url: "https://docs.google.com/document/d/x/edit"))
+        XCTAssertEqual(AppInbound.parse(json(["type": "show_menu", "url": "javascript:alert(1)"])), .showMenu(url: nil))
         let reload = try! JSONSerialization.jsonObject(with: AppOutbound.reload.encoded()) as! [String: Any]
         XCTAssertEqual(reload["type"] as? String, "reload")
     }

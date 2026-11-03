@@ -248,9 +248,11 @@ export class FocusController {
    * Otherwise explain where Ekagrachit lives, and how to end a session whose
    * app was quit (reopen it: it resumes the session; then ⌃⌥⌘E).
    */
-  async onActionClicked(): Promise<void> {
+  async onActionClicked(tabUrl?: string): Promise<void> {
     if (this.bridge.appConnected) {
-      this.send({ v: 1, type: 'show_menu' });
+      // The tab the button was clicked in: the menu offers exactly this page.
+      const url = tabUrl && /^https?:/i.test(tabUrl) ? tabUrl : undefined;
+      this.send(url ? { v: 1, type: 'show_menu', url } : { v: 1, type: 'show_menu' });
       return;
     }
     await chrome.tabs.create({ url: chrome.runtime.getURL(this.rec ? 'app.html#session' : 'app.html') });

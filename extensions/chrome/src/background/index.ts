@@ -30,7 +30,7 @@ chrome.windows.onBoundsChanged.addListener((win) => q(() => controller.onWindowB
 chrome.alarms.onAlarm.addListener((alarm) => q(() => controller.onAlarm(alarm.name)));
 // The toolbar button opens the Mac app's menu: there is one way to start a
 // session, and it is the app. (No popup, no extension-side controls.)
-chrome.action.onClicked.addListener(() => q(() => controller.onActionClicked()));
+chrome.action.onClicked.addListener((tab) => q(() => controller.onActionClicked(tab.url)));
 
 // Startup/installation hooks exist only to wake the worker; init() runs on module load.
 chrome.runtime.onStartup.addListener(() => controller.bridge.connect());

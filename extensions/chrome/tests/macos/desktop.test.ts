@@ -568,7 +568,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const isMenu = (w: { layer: number; w: number; h: number }) =>
       w.layer !== OVERLAY_LAYER && w.layer !== OVERLAY_LAYER + 1 && w.w >= 300 && w.w <= 420 && w.h >= 200;
     assert.ok(!appWindows().some(isMenu), 'menu closed before');
-    await inSW(h, () => (globalThis as any).__ekagrachit.onActionClicked());
+    await inSW(h, (u) => (globalThis as any).__ekagrachit.onActionClicked(u), SHOWCASE);
     await waitFor(async () => appWindows().some(isMenu), (v) => v, 6_000, 'menu window opened by the toolbar button');
     await sleep(1200);
     shot('40-menu-from-chrome');

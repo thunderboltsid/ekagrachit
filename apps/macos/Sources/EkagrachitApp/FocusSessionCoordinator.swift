@@ -205,6 +205,12 @@ final class FocusSessionCoordinator: ObservableObject {
     /// Ask the extension for the active tab's URL (menu prefill).
     func refreshSuggestion() {
         suggestedTarget = nil // so the same URL fills the (cleared) field again
+        // Opened from Chrome's toolbar: offer exactly the tab it was clicked in.
+        if let m = menuURL, Date().timeIntervalSince(m.at) < 3 {
+            menuURL = nil
+            suggestedTarget = m.url
+            return
+        }
         guard let id = activeConnection, machine.phase == .idle else { return }
         let cid = BridgeProtocol.newSid()
         pendingTabCID = cid
@@ -301,6 +307,8 @@ final class FocusSessionCoordinator: ObservableObject {
     }
 
     private var pendingQuickMinutes = 25
+    /// The tab URL sent with show_menu, used by the menu that opens next.
+    private var menuURL: (url: String, at: Date)?
 
     /// ekagrachit://focus?url=…|app=<bundle id>|window=front[&minutes=N]
     /// (for Shortcuts, Raycast, Alfred, scripts). There is deliberately no URL
@@ -740,7 +748,8 @@ final class FocusSessionCoordinator: ObservableObject {
             // Technical detail goes to the log; people get a sentence.
             Log.info("extension error \(code): \(text)")
             if sid == nil || sid == machine.session?.sid { message = Self.friendly(code: code) }
-        case .showMenu:
+        case let .showMenu(url):
+            menuURL = url.map { ($0, Date()) }
             openMenuWindow()
         case .hostHello, .hello:
             break

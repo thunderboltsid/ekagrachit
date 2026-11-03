@@ -151,8 +151,9 @@ describe('Native bridge: extension <-> ekagrachit-host <-> app', { skip: !exists
 
   test('the toolbar button asks the app to open its menu (no extension UI)', async () => {
     const tabsBefore = (await allTabs(h)).length;
-    await inSW(h, () => (globalThis as any).__ekagrachit.onActionClicked());
-    await app.waitFor((m) => m.type === 'show_menu', 'show_menu');
+    await inSW(h, (u) => (globalThis as any).__ekagrachit.onActionClicked(u), DOC_A);
+    const msg = await app.waitFor((m) => m.type === 'show_menu', 'show_menu');
+    assert.equal(msg.url, DOC_A, 'the clicked tab is offered');
     assert.equal((await allTabs(h)).length, tabsBefore, 'no page or popup opened in Chrome');
   });
 
