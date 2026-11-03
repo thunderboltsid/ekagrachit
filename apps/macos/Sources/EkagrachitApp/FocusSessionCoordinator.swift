@@ -164,6 +164,11 @@ final class FocusSessionCoordinator: ObservableObject {
         }
         guard env["EKAGRACHIT_NO_HOST_REGISTRATION"] != "1" else { return }
         let host = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/ekagrachit-host")
+        // Chrome executes the host directly. If the app came from a downloaded
+        // DMG, the user approved the app (Open Anyway) but the helper still
+        // carries the quarantine flag, which can make macOS refuse to run it
+        // when Chrome starts it. Clear it on our own bundled helper.
+        _ = removexattr(host.path, "com.apple.quarantine", XATTR_NOFOLLOW)
         guard fm.isExecutableFile(atPath: host.path),
               let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
         let result = NativeHostRegistration.register(hostPath: host.path, applicationSupport: support)

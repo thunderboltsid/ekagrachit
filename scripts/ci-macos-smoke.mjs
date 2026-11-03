@@ -10,7 +10,7 @@
 // focus (no Chrome window exists); see docs/testing.md for the manual checklist.
 //
 // Usage: node scripts/ci-macos-smoke.mjs apps/macos/build/Ekagrachit.app
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -25,6 +25,9 @@ const fail = (msg) => {
   process.exit(1);
 };
 
+// Simulate a downloaded install: the bundled host carries the quarantine flag;
+// the app must clear it at launch so Chrome can execute it.
+spawnSync('xattr', ['-w', 'com.apple.quarantine', '0081;00000000;Safari;', join(app, 'Contents/MacOS/ekagrachit-host')]);
 const appProc = spawn(join(app, 'Contents/MacOS/Ekagrachit'), [], { env, stdio: ['ignore', 'inherit', 'inherit'] });
 let host;
 function cleanup() {
@@ -53,7 +56,9 @@ console.log('app started; socket ready');
   if (m.path !== join(app, 'Contents/MacOS/ekagrachit-host')) fail(`manifest points at ${m.path}`);
   if (!m.allowed_origins.includes('chrome-extension://dpbpdbflelamfpmehknioljngeaagaeb/')) fail('manifest origin');
   if (!existsSync(join(support, 'Chrome Extension/manifest.json'))) fail('extension folder not synced');
-  console.log('host registered and extension folder synced');
+  const q = spawnSync('xattr', ['-p', 'com.apple.quarantine', join(app, 'Contents/MacOS/ekagrachit-host')]);
+  if (q.status === 0) fail('quarantine flag still set on the bundled host');
+  console.log('host registered, quarantine cleared, extension folder synced');
 }
 // First launch without an extension: the setup window should appear after ~4 s.
 await new Promise((r) => setTimeout(r, 5500));
