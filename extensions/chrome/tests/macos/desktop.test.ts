@@ -494,7 +494,6 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
   test('native app via ekagrachit:// URL (Shortcuts, Raycast): focus Terminal', { timeout: 120_000 }, async () => {
     execFileSync('open', ['-a', 'Terminal']);
     await waitFor(async () => appWindow('Terminal'), (w) => !!w, 10_000, 'Terminal window');
-    const term = appWindow('Terminal')!;
     const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
     execFileSync(lsregister, ['-f', APP]);
     const before = execFileSync('pgrep', ['-x', 'Ekagrachit'], { encoding: 'utf8' }).trim().split('\n');
@@ -508,6 +507,8 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     await waitActive('Terminal session active');
     await sleep(800);
     shot('32-native-terminal');
+    // Read the bounds now: Terminal snaps its height to whole rows after opening.
+    const term = appWindow('Terminal')!;
     assertHoleAround({ x: term.x, y: term.y, w: term.w, h: term.h }, 'terminal');
     await endViaHold();
     } finally {
