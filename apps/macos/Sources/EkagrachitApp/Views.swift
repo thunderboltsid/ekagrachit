@@ -86,9 +86,8 @@ struct MenuContentView: View {
                 target = ""
                 urlFocused = false
             } else {
-                target = ""
+                target = coordinator.refreshSuggestion() ?? ""
                 urlFocused = true
-                coordinator.refreshSuggestion()
             }
         }
         .onChange(of: coordinator.suggestedTarget) { _, url in

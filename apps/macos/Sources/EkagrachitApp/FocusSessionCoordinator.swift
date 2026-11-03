@@ -203,18 +203,21 @@ final class FocusSessionCoordinator: ObservableObject {
     }
 
     /// Ask the extension for the active tab's URL (menu prefill).
-    func refreshSuggestion() {
+    /// Returns the suggestion at once when it is already known (the menu was
+    /// opened from Chrome's toolbar, which sent the tab); otherwise asks
+    /// Chrome and publishes `suggestedTarget` when it answers.
+    @discardableResult
+    func refreshSuggestion() -> String? {
         suggestedTarget = nil // so the same URL fills the (cleared) field again
-        // Opened from Chrome's toolbar: offer exactly the tab it was clicked in.
         if let m = menuURL, Date().timeIntervalSince(m.at) < 3 {
             menuURL = nil
-            suggestedTarget = m.url
-            return
+            return m.url
         }
-        guard let id = activeConnection, machine.phase == .idle else { return }
+        guard let id = activeConnection, machine.phase == .idle else { return nil }
         let cid = BridgeProtocol.newSid()
         pendingTabCID = cid
         bridge.send(.activeTabRequest(cid: cid), to: id)
+        return nil
     }
 
     /// Called on app termination (logout, update, kill via Quit when idle).
