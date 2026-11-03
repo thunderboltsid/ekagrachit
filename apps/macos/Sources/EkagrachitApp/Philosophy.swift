@@ -59,25 +59,27 @@ struct AboutView: View {
 
                 section("A lamp in a windless place") {
                     verse("yathā dīpo nivāta-stho neṅgate sopamā smṛtā",
-                          "“As a lamp in a windless place does not flicker — that is the image of the disciplined mind.”",
+                          "“As a lamp sheltered from the wind burns without a flicker, so burns the gathered mind.”",
                           "Bhagavad Gītā 6.19")
-                    Text("That lamp is Ekagrachit's mark. The covered screen is the windless place; your document is the flame.")
+                    Text("That lamp is Ekagrachit's mark. The darkened screen is the windless place; your document is the flame.")
                 }
 
                 section("Returning is the practice") {
                     verse("yato yato niścarati manaś cañcalam asthiram / tatas tato niyamyaitad ātmany eva vaśaṁ nayet",
-                          "“Wherever the restless, unsteady mind wanders, from there bring it back.”",
+                          "“Wherever the restless mind wanders, draw it back from there, and let it rest within.”",
                           "Bhagavad Gītā 6.26")
                     Text("When you switch away and Ekagrachit brings you back, it isn't punishing a lapse. Wandering is what minds do; returning is the practice — what Patañjali calls *abhyāsa* (Yoga Sūtra 1.12–1.14).")
                 }
 
                 section("One place for the mind") {
                     verse("deśa-bandhaś cittasya dhāraṇā",
-                          "“Concentration is binding the mind to one place.”",
+                          "“To hold the mind to a single place: this is concentration.”",
                           "Yoga Sūtra 3.1")
                     Text("One document, one window, one stretch of time: a place to bind attention to. The links you reach for are saved, so the thread isn't lost — only postponed.")
                 }
 
+                Text("These ideas come from India's contemplative traditions rooted in the Vedas. Ekagrachit borrows its name from them with respect; it is a tool, not a teacher. English renderings are our own, made for meaning rather than word for word.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Divider()
                 HStack {
                     Text("Ekagrachit \(version)").foregroundStyle(.secondary)
