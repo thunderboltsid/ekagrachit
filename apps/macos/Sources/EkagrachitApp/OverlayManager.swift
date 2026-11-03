@@ -505,4 +505,11 @@ final class ToastPanel: NSPanel {
         hideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
     }
+
+    /// Gone at once (a new session starts: old news shouldn't sit over it).
+    func dismiss() {
+        hideWork?.cancel()
+        hideWork = nil
+        orderOut(nil)
+    }
 }

@@ -70,6 +70,7 @@ struct MenuContentView: View {
         .padding(.top, 14)
         .padding(.bottom, 18)
         .frame(width: 340)
+        .onExitCommand { coordinator.dismissMenu() }
         .onAppear {
             coordinator.refreshPermissions()
             let d = coordinator.settings.defaultMinutes

@@ -458,6 +458,9 @@ final class FocusSessionCoordinator: ObservableObject {
         return nil
     }
 
+    /// Escape in the menu: close it the same way a click on ◎ does.
+    func dismissMenu() { closeMenuWindow() }
+
     private func closeMenuWindow() {
         guard visibleMenuWindow != nil else { return }
         Log.info("closing menu window")
@@ -567,6 +570,7 @@ final class FocusSessionCoordinator: ObservableObject {
             store.clear()
         case .sessionStarted:
             lastSessionMinutes = sessionMinutes
+            toast.dismiss()
             sessionSpan = machine.session.map { (start: $0.startedAt, end: $0.deadline.wall, app: $0.app) }
             closeMenuWindow()
             runShortcut(settings.startShortcut)
@@ -587,9 +591,9 @@ final class FocusSessionCoordinator: ObservableObject {
                     if let app = span?.app {
                         let title = app.title.count > 40 ? String(app.title.prefix(39)) + "…" : app.title
                         let what = title.isEmpty ? app.appName : title
-                        text += " · \(minutes) minutes with \(what)"
+                        text += " · \(minutes) \(minutes == 1 ? "minute" : "minutes") with \(what)"
                     } else {
-                        text += " · \(minutes) minutes of one-pointed attention"
+                        text += " · \(minutes) \(minutes == 1 ? "minute" : "minutes") of one-pointed attention"
                     }
                 }
                 let today = ledger.seconds(on: Date(), calendar: .current)
