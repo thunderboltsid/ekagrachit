@@ -59,8 +59,8 @@ async function refresh(): Promise<void> {
       : 'Browser-only session (desktop is not obscured).';
   } else {
     $('mode').textContent = state.bridge === 'app_connected'
-      ? 'The Mac app will obscure everything else on screen.'
-      : 'Browser-only mode: tabs and navigation are restricted; the rest of the desktop is not obscured.';
+      ? 'The Mac app will dim everything else on screen.'
+      : 'Browser-only mode: tabs and navigation are restricted; the rest of your screen stays as it is.';
   }
   if (state.lastError) showError(state.lastError);
   if (!state.session) {
