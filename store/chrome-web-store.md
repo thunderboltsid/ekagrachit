@@ -14,7 +14,7 @@ sideloaded copies.
 **Name:** Ekagrachit — one-pointed focus
 
 **Summary (132 chars max):**
-A deep-focus tool for people whose distractions are productive apps. One document, one window, nothing else until time's up.
+A deep-focus tool for people whose distractions are productive apps. One page, one window, nothing else until time's up.
 
 **Category:** Productivity → Tools
 
@@ -27,14 +27,18 @@ A deep-focus tool for people whose distractions are productive apps. One documen
 > Ekagrachit (एकाग्रचित्त, "one-pointed attention") gives you a temporary,
 > strictly scoped workspace:
 >
-> • Choose one resource — a Google Doc, Sheet or Slides deck, a GitHub pull
->   request, a Jira issue, or any page — and a duration.
+> • Choose one resource and a duration: a Google Doc, Sheet or Slides deck, a
+>   GitHub or GitLab pull request, a Jira or Linear issue, a Notion or
+>   Confluence page, a Figma file, a Miro board, an Overleaf project, a Colab
+>   notebook, Word, Excel or PowerPoint for the web, or any page.
 > • It opens in a dedicated window, signed in as usual. Editing, comments and
 >   everything else in the document keep working.
 > • Links to anything else simply don't load. New tabs and windows close.
 >   Every link you reached for is saved and shown when the session ends.
 > • With the free Ekagrachit Mac app, the rest of your screen is covered too —
 >   other apps, the Dock, other Spaces — and switching away brings you right back.
+>   The Mac app can also focus any app window: Word, Pages, VS Code, Xcode,
+>   iTerm2 and the rest.
 > • Ending early takes a deliberate hold, never an accidental click.
 >
 > Everything stays on your device: no account, no tracking, no network requests.

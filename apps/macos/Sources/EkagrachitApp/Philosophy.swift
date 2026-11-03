@@ -75,7 +75,7 @@ struct AboutView: View {
                     verse("deśa-bandhaś cittasya dhāraṇā",
                           "“To hold the mind to a single place: this is concentration.”",
                           "Yoga Sūtra 3.1")
-                    Text("One document, one window, one stretch of time: a place to bind attention to. The links you reach for are saved, so the thread isn't lost — only postponed.")
+                    Text("One thing, one window, one stretch of time: a place to bind attention to. The links you reach for are saved, so the thread isn't lost — only postponed.")
                 }
 
                 Text("These ideas come from India's contemplative traditions rooted in the Vedas. Ekagrachit borrows its name from them with respect; it is a tool, not a teacher.")

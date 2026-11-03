@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ekagrachit — one document, one window, nothing else</title>
-  <meta name="description" content="A deep-focus tool for people whose distractions are productive apps. Ekagrachit opens the one document you chose in its own window and keeps every other tab, site and app out of reach until your session ends. For macOS and Google Chrome.">
+  <title>Ekagrachit — one thing, one window, nothing else</title>
+  <meta name="description" content="A deep-focus tool for people whose distractions are productive apps. Choose the one thing you're working on, whether a Google Doc, a Figma file, a Word document, your code editor or your terminal, and Ekagrachit keeps every other window, tab and app out of reach until your session ends. For macOS.">
   <meta property="og:title" content="Ekagrachit — one-pointed focus for macOS">
   <meta property="og:description" content="A deep-focus tool for people whose distractions are productive apps.">
   <meta property="og:image" content="https://thunderboltsid.github.io/ekagrachit/images/focus-session.png">
@@ -46,6 +46,9 @@
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
     .card h3 { margin: 0 0 6px; font-size: 18px; }
     .card p { margin: 0; color: var(--muted); font-size: 15.5px; }
+    p.sub { max-width: 720px; color: var(--muted); font-size: 18px; margin: 0; }
+    kbd { font: 600 .9em ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--card); white-space: nowrap; }
+    .card code { font-size: .86em; word-break: break-all; }
     .steps { counter-reset: s; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; margin-top: 28px; align-items: start; }
     .step { counter-increment: s; }
     .step h3::before { content: counter(s) ". "; color: var(--warm); }
@@ -84,14 +87,14 @@
   <header class="hero">
     <div class="wrap">
       <div class="brand"><img src="images/icon-256.png" alt=""><span>Ekagrachit <span class="devanagari">· एकाग्रचित्त</span></span></div>
-      <h1>One document.<br>One window.<br>Nothing else.</h1>
-      <p class="lede"><strong class="pitch">A deep-focus tool for people whose distractions are productive apps.</strong> Give Ekagrachit the one document you're working on; it opens it in its own window and keeps every other tab, site and app out of reach until your session ends.</p>
+      <h1>One thing.<br>One window.<br>Nothing else.</h1>
+      <p class="lede"><strong class="pitch">A deep-focus tool for people whose distractions are productive apps.</strong> Choose the one thing you're working on, whether a doc, a pull request, a spreadsheet, your editor or your terminal. Ekagrachit keeps every other window, tab and app out of reach until your session ends.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/thunderboltsid/ekagrachit/releases/latest">Download for Mac</a>
         <a class="btn ghost" href="#how">How it works</a>
         <a class="btn ghost" href="#name">The name</a>
       </div>
-      <p class="req">macOS 26 Tahoe · Apple Silicon · Google Chrome</p>
+      <p class="req">macOS 26 Tahoe · Apple Silicon · Google Chrome for web pages</p>
       <div class="shot"><img src="images/focus-session.png" alt="A Google Doc in a focus window; everything else on the screen is frosted over; a small pill shows the time remaining." width="1024" height="768"></div>
     </div>
   </header>
@@ -101,6 +104,7 @@
       <div class="wrap">
         <h2>The distraction isn't social media.</h2>
         <p>You open a design doc to review it. A paragraph reminds you of a Jira ticket. The ticket links a pull request. Slack pings. Twenty minutes later there are five new tabs, three half-finished thoughts, and <strong>the review you sat down for still isn't done.</strong></p>
+        <p>Or you open your editor to fix one bug, and a terminal, a dashboard and a chat thread later, it's lunch.</p>
         <p>Blockers don't help: Jira, GitHub and Slack are your job. Ekagrachit doesn't judge websites. It protects the <strong>one thing you decided to work on</strong>, for as long as you decided to work on it.</p>
       </div>
     </section>
@@ -134,7 +138,7 @@
               <div class="en">“As a lamp sheltered from the wind burns without a flicker, so burns the gathered mind.”</div>
               <div class="src">Bhagavad Gītā 6.19</div>
             </div>
-            <p>That lamp is Ekagrachit's mark. The darkened screen is the windless place; your document is the flame.</p>
+            <p>That lamp is Ekagrachit's mark. The darkened screen is the windless place; your work is the flame.</p>
             <div class="verse">
               <div class="sa" lang="sa-Latn">yato yato niścarati manaś cañcalam asthiram, tatas tato niyamyaitad ātmany eva vaśaṁ nayet</div>
               <div class="en">“Wherever the restless mind wanders, draw it back from there, and let it rest within.”</div>
@@ -147,23 +151,35 @@
       </div>
     </section>
 
+    <section id="works-with">
+      <div class="wrap">
+        <h2>Works with what you work in</h2>
+        <p class="sub">Any Mac window can be your one thing. Web pages get even finer control: links away from the page never load.</p>
+        <div class="grid">
+          <div class="card"><h3>Mac apps</h3><p>Word, Excel, PowerPoint, Pages, Numbers, Keynote. VS Code, Cursor, Xcode, IntelliJ. Terminal, iTerm2, Warp, Ghostty. Obsidian, Logic, Final Cut. If it has a window, you can focus on it: open it, press <kbd>⌃⌥⌘F</kbd>.</p></div>
+          <div class="card"><h3>Web apps, by what you're working on</h3><p>Google Docs, Sheets and Slides. GitHub and GitLab pull requests. Jira, Linear, Confluence, Notion, Figma, Miro, Overleaf, Colab, and Word, Excel and PowerPoint on the web. Ekagrachit recognises the document itself, so its views, tabs and comments keep working and everything else stays out.</p></div>
+          <div class="card"><h3>From anywhere</h3><p>Start from the menu bar, with <kbd>⌃⌥⌘F</kbd> on whatever is in front, or from Shortcuts, Raycast and Alfred with <code>ekagrachit://focus?window=front&amp;minutes=50</code>.</p></div>
+        </div>
+      </div>
+    </section>
+
     <section id="how">
       <div class="wrap">
         <h2>How it works</h2>
         <div class="steps">
           <div class="step">
             <h3>Choose one thing and a duration</h3>
-            <p>Click ◎ in the menu bar. Your current Chrome tab is already filled in; pick 15, 25, 45, 60 minutes or your own.</p>
-            <img src="images/menu.png" alt="The Ekagrachit menu: a URL field, duration choices, and Start Focus." loading="lazy">
+            <p>Click ◎ in the menu bar. What you were just working on is already chosen, whether that's the Chrome tab or the window in front. Pick 15, 25, 45 or 60 minutes, or your own. Or skip the menu: <kbd>⌃⌥⌘F</kbd>.</p>
+            <img src="images/menu.png" alt="The Ekagrachit menu: a link field, a list of open windows, duration choices, and Start Focus." loading="lazy">
           </div>
           <div class="step">
             <h3>Work. Everything else is gone.</h3>
-            <p>Your document opens in a clean window, signed in as always. Other apps, the Dock and other Spaces are covered; switching away brings you right back.</p>
+            <p>A web page opens in a clean window, signed in as always; an app window stays exactly where it is. Other apps, the Dock and other Spaces are covered, and switching away brings you right back.</p>
             <img src="images/focus-session.png" alt="The focus window with the rest of the screen covered." loading="lazy">
           </div>
           <div class="step">
             <h3>Pick up the threads afterwards</h3>
-            <p>Every link you reached for was saved, not lost. When the session ends, there they are.</p>
+            <p>Every link you reached for in a focused page was saved, not lost. When the session ends, there they are.</p>
             <img src="images/saved-for-later.png" alt="Saved for later: a list of links the user tried to open during the session." loading="lazy">
           </div>
         </div>
@@ -175,7 +191,7 @@
         <h2>Built to hold, not to nag</h2>
         <div class="grid">
           <div class="card"><h3>Off-target links never load</h3><p>Navigating away from your document is stopped before the page is even requested. New tabs and windows close. Your document keeps working: editing, comments, everything.</p></div>
-          <div class="card"><h3>The whole screen, not just a tab</h3><p>Every display and Space is covered, the Dock and menu bar included. Cmd-Tab, Mission Control and Stage Manager all lead back to your document.</p></div>
+          <div class="card"><h3>The whole screen, not just a tab</h3><p>Every display and Space is covered, the Dock and menu bar included. Cmd-Tab, Mission Control and Stage Manager all lead back to your window, and a new window can't take its place.</p></div>
           <div class="card"><h3>Saved for later</h3><p>The Jira ticket, the PR, the doc your doc links to: captured with one click, listed when you're done. Follow the thought later without losing the thread now.</p></div>
           <div class="card"><h3>Ending early is deliberate</h3><p>Press ⌃⌥⌘E (or End… in the pill) and hold for two seconds. Never an accidental click, never a trap.</p><img src="images/end-early.png" alt="End this focus session early? Keep focusing / Hold to end session" style="width:100%;margin-top:12px;border-radius:10px;border:1px solid var(--line)" loading="lazy"></div>
           <div class="card"><h3>Robust by design</h3><p>Survives sleep, browser restarts and app restarts. Time keeps counting while your Mac sleeps, and changing the clock can't extend a session. Ending never closes a page with unsaved changes without asking.</p></div>
@@ -194,7 +210,7 @@
           </div>
           <div class="step">
             <h3>Follow the setup window</h3>
-            <p>It opens Chrome's Extensions page and the extension folder for you: turn on Developer mode and drag the folder in. Then allow Accessibility so Ekagrachit can bring your document back to the front.</p>
+            <p>Allow Accessibility so Ekagrachit can bring your window back to the front. To focus on web pages, add the Chrome extension: the setup window opens Chrome's Extensions page and the folder for you.</p>
             <img src="images/setup.png" alt="Setup window with two steps: Chrome extension and Accessibility permission." loading="lazy">
           </div>
         </div>
@@ -206,8 +222,9 @@
         <h2>Questions</h2>
         <details><summary>Is this a website blocker?</summary><p>No. There's no blocklist. During a session exactly one resource is allowed — your document (any of its views, tabs and comments), and nothing else. Outside a session your browser behaves normally.</p></details>
         <details><summary>What counts as “the same document”?</summary><p>Google Docs, Sheets, Slides, Forms and Drive files are recognised by their document ID, so edit/view/comment modes and headings all work. GitHub pull requests and issues include their Files and Commits tabs. Jira issues by key. Notion pages, Figma files, Linear issues, Confluence pages, GitLab merge requests and issues (self-hosted too), Bitbucket pull requests, Miro boards, Overleaf projects, Colab notebooks and Word, Excel and PowerPoint for the web are recognised by their stable ID, so renaming a page or moving between its views never breaks the session. Any other page by its exact address.</p></details>
+        <details><summary>What can I do inside a focused app?</summary><p>Everything, in that window. The window is the unit: tabs inside it (an editor's files, a terminal's tabs) stay usable, and its own sheets and dialogs work. Other windows of the same app, and every other app, stay covered. If the app is relaunched, Ekagrachit finds the window again by its title.</p></details>
         <details><summary>What if I really need to get out?</summary><p>Press ⌃⌥⌘E and hold the button for two seconds. If anything ever misbehaves, quitting Ekagrachit (⌥⌘⎋, Force Quit) removes the overlay immediately.</p></details>
-        <details><summary>Does it work without the Mac app?</summary><p>The Chrome extension works on its own and locks the browser to your document; the rest of your desktop just isn't covered. The app adds the full-screen isolation.</p></details>
+        <details><summary>Do I need Chrome?</summary><p>Only for web pages. Focusing a Mac app needs just the app and the Accessibility permission. The Chrome extension also works on its own: it locks the browser to your page, but leaves the rest of your desktop uncovered.</p></details>
         <details><summary>Which browsers?</summary><p>Google Chrome. Chromium, Brave and Edge use the same extension system and are registered automatically, but Chrome is what we test.</p></details>
         <details><summary>Does it silence notifications?</summary><p>macOS doesn't let apps switch Focus modes directly. In Settings you can name two Shortcuts (Do Not Disturb on/off) that Ekagrachit runs at the start and end of a session.</p></details>
         <details><summary>Why does macOS warn when I first open it?</summary><p>This build is not yet notarised by Apple. It's open source and built in public CI; you can check the SHA-256 checksums on the release page or build it yourself.</p></details>

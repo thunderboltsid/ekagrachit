@@ -7,7 +7,7 @@ analytics and no telemetry, and it makes no network requests of its own.
 
 | Data | Where | Kept until |
 |---|---|---|
-| The current session: target URL, deadline, focus window/tab ids, links you reached for | `chrome.storage.local` (extension) and `~/Library/Application Support/Ekagrachit/session.json` (app) | The session ends |
+| The current session: target URL (or, for an app window, the app and the window's title), deadline, focus window/tab ids, links you reached for | `chrome.storage.local` (extension) and `~/Library/Application Support/Ekagrachit/session.json` (app) | The session ends |
 | "Saved for later" links from your last session | `chrome.storage.local` | You press **Clear**, or 7 days |
 | Settings (duration, overlay style, Shortcut names, sound) | macOS user defaults | You change them / uninstall |
 
@@ -22,14 +22,20 @@ never seen or stored.
   Ekagrachit's own UI.
 - **The active tab's URL when you open the menu**, to offer it as the target.
 - **Window positions and sizes** (from macOS and Chrome), to keep the overlay
-  around your focus window. Window contents and titles of other apps are never
-  read; Ekagrachit does not use screen recording.
+  around your focus window.
+- **The titles of open app windows, when you open the menu or press ⌃⌥⌘F**,
+  read through the Accessibility permission, so the window list says
+  "Q3 plan.docx — Microsoft Word" rather than just "Microsoft Word". Titles are
+  shown in the menu, and the focus window's title is kept in the session file
+  so the window can be found again if its app restarts. They never leave your
+  Mac and are not kept after the session.
+- Window *contents* are never read. Ekagrachit does not use screen recording.
 
 ## Permissions and why
 
 | Component | Permission | Purpose |
 |---|---|---|
-| App | Accessibility | Bring the focus window back to the front when you switch away. |
+| App | Accessibility | Bring the focus window back to the front when you switch away; list open windows by title. |
 | Extension | `tabs`, `webNavigation` | Identify the focus window/tab and check top-level navigations. |
 | Extension | `declarativeNetRequest` | Block off-target page loads *before* they happen. No host permissions are requested. |
 | Extension | `nativeMessaging` | Talk to the Ekagrachit app on your Mac. |

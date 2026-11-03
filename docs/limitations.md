@@ -51,11 +51,33 @@ observed through the window server and checked with screenshot pixels.
 | Force Quit (Cmd+Opt+Esc), Activity Monitor kill | **Possible** by design. Nothing is left behind |
 | Auto-hidden Dock revealed by moving the pointer to the screen edge | The revealed Dock can appear over the focus window's edge; clicking an app there is the app-switch case (reversed) |
 
+## Native app windows (Word, Pages, VS Code, Cursor, Xcode, iTerm2, Warp, …)
+The unit is **the window**. Whatever happens inside it is allowed: an editor's
+file tabs, a terminal's tabs and splits, a document's sheets and dialogs. There
+is no per-URL control inside an app the way there is for web pages.
+
+| Attempt | Result |
+|---|---|
+| Switching to another app | **Reversed**, as for web sessions (tested with TextEdit) |
+| A new window of the same app (⌘N, ⌘O, "New Tab" that opens a window) | Covered; the focus window is raised back on top (tested with TextEdit) |
+| The app's own sheets, popovers, autocomplete and menus | Allowed while they stay inside the focus window's frame |
+| A floating panel of the same app outside the window (an inspector, a palette) | Its part outside the window is covered; a panel *over* the window counts as "another window in front" after the 2.5 s safety valve reopens the hole |
+| Closing the focus window | The session waits for the window to come back (found again by title, or the app's only window) and ends after the degraded timeout if it doesn't |
+| Quitting / relaunching the app | Same as closing: the window is found again by its title when the app reopens it |
+| Apps whose windows have no title (some games, Electron splash screens) | Work, but cannot be found again after a relaunch unless the app has a single window |
+| Browsers as native targets | Not offered: web pages are focused through the extension, which gives link-level control |
+| Starting via `ekagrachit://` | `focus?window=front`, `focus?app=<bundle id>`, `focus?url=…`. There is deliberately no URL to end a session |
+
+Window titles are read through the Accessibility permission to label the
+window list and to find the window again; see [PRIVACY.md](../PRIVACY.md).
+
 ### Not covered by automated tests
 These need hardware or accounts CI does not have:
 - **Two or more displays.** The runner has one display. The geometry is unit-tested for multi-display layouts.
 - **Real sleep/wake.** Deadline semantics are unit-tested; on wake the app ticks immediately.
 - **A real Google account and Google Docs.** Tests use a local stand-in served as `docs.google.com`.
+- **Real web apps (Notion, Figma, Linear, Confluence, GitLab, Office for the web, …).** URL identity, the generated blocking rules (checked with Chrome's own `isRegexSupported`) and a stand-in Figma session are tested; their sign-in flows against the real services are not.
+- **Third-party Mac apps (Office, iWork, IDEs, iTerm2, Warp).** The desktop tests use TextEdit and Terminal, which exercise the same window-server and Accessibility paths. Apps with unusual window structures (multiple layer-0 helper windows, custom full-screen modes) may behave differently.
 - **Branded Google Chrome.** Tests use Chrome for Testing, which has the same extension APIs. Branded Chrome only differs in requiring "Load unpacked" by hand.
 
 ## Platform constraints

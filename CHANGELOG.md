@@ -4,13 +4,22 @@
 
 First release.
 
-- **One document, one window, one duration.** Paste a Google Doc (or GitHub PR,
-  Jira issue, any page), pick 15/25/45/60 minutes or a custom length, and
-  Ekagrachit opens it in a dedicated Chrome window with your normal sign-ins.
+- **One thing, one window, one duration.** Choose any Mac window (Word,
+  Pages, Excel, Keynote, VS Code, Cursor, Xcode, IntelliJ, Terminal, iTerm2,
+  Warp, …) or a web page in Chrome, pick 15/25/45/60 minutes or a custom
+  length, and everything else stays out of reach until time is up.
+- **Web apps recognised by what you're working on.** Google Docs, Sheets,
+  Slides and Drive files; GitHub and GitLab pull requests and issues; Jira and
+  Linear issues; Notion, Confluence, Figma, Miro, Overleaf, Colab, and Office
+  for the web. Their views, tabs and comments keep working; nothing else loads.
+- **Start from anywhere.** The menu preselects what you were just doing (the
+  Chrome tab or the window in front); ⌃⌥⌘F focuses the window in front of
+  you; `ekagrachit://focus?window=front|app=…|url=…` for Shortcuts, Raycast
+  and Alfred.
 - **Everything else disappears.** Other windows, the Dock and the menu bar are
   covered on every display and Space; switching apps, Chrome windows, Spaces,
   Mission Control or Stage Manager brings you straight back.
-- **Off-target links never load.** Navigations away from your document are
+- **Off-target links never load.** Navigations away from your page are
   blocked before any request is made; new tabs and windows are closed.
 - **Saved for later.** Every link you reach for during a session is kept and
   listed when it ends, so following a thought never costs you the thread.
