@@ -2,6 +2,19 @@ import AppKit
 import Combine
 import EkagrachitCore
 import ServiceManagement
+import os
+
+/// Diagnostics: unified log (Console.app, subsystem io.github.thunderboltsid.ekagrachit)
+/// and, when run from a terminal or test harness, stderr.
+enum Log {
+    private static let logger = Logger(subsystem: "io.github.thunderboltsid.ekagrachit", category: "app")
+    static func info(_ s: String) {
+        logger.info("\(s, privacy: .public)")
+        if isatty(STDERR_FILENO) != 0 || ProcessInfo.processInfo.environment["EKAGRACHIT_LOG_STDERR"] == "1" {
+            FileHandle.standardError.write(Data("[ekagrachit \(Date().timeIntervalSince1970)] \(s)\n".utf8))
+        }
+    }
+}
 
 /// User preferences (UserDefaults). Never stores URLs or history.
 final class AppSettings: ObservableObject {
@@ -249,6 +262,7 @@ final class FocusSessionCoordinator: ObservableObject {
     /// The menu-bar window must not stay open over the focus window.
     private func closeMenuWindow() {
         for w in NSApp.windows where w.isVisible && String(describing: type(of: w)).contains("MenuBarExtra") {
+            Log.info("closing menu window")
             w.close()
         }
     }
@@ -418,8 +432,11 @@ final class FocusSessionCoordinator: ObservableObject {
 
         switch msg {
         case let .startRequest(cid, target, minutes):
+            let t0 = Date()
+            Log.info("start_request received")
             let error = startSession(target: target, minutes: minutes)
             bridge.send(.startResult(cid: cid, ok: error == nil, error: error), to: id)
+            Log.info("start_result sent after \(Int(Date().timeIntervalSince(t0) * 1000)) ms (ok: \(error == nil))")
         case let .endRequest(sid):
             // The extension UI already required a hold-to-confirm.
             if machine.session?.sid == sid { dispatch(.endRequested(.userEnded)) }

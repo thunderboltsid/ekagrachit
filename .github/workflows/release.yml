@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check tag matches version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          V=$(node -p 'require("./extensions/chrome/manifest.json").version')
+          [ "v$V" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} != version $V"; exit 1; }
+      - name: Test core
+        working-directory: apps/macos
+        run: swift test
+      - name: Build release artifacts
+        run: scripts/package-release.sh
+      - name: Verify the DMG mounts and contains a valid app
+        run: |
+          DMG=$(ls dist/*.dmg)
+          MNT=$(hdiutil attach "$DMG" -nobrowse -readonly | tail -1 | awk -F'\t' '{print $NF}')
+          codesign --verify --strict "$MNT/Ekagrachit.app"
+          test -f "$MNT/Ekagrachit.app/Contents/Resources/AppIcon.icns"
+          test -f "$MNT/Ekagrachit.app/Contents/Resources/ChromeExtension/manifest.json"
+          hdiutil detach "$MNT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: dist
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "Ekagrachit ${GITHUB_REF_NAME#v}" \
+            --notes-file <(awk '/^## /{n++} n==1' CHANGELOG.md)

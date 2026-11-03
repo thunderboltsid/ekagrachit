@@ -57,7 +57,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
   const server = new TestServer();
   const support = mkdtempSync('/tmp/ek-mac-');
   const sock = join(support, 'b.sock');
-  const appEnv = { ...process.env, EKAGRACHIT_SUPPORT_DIR: support, EKAGRACHIT_SOCKET: sock, EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY: '1', EKAGRACHIT_NO_SETUP_WINDOW: '1', EKAGRACHIT_NO_HOST_REGISTRATION: '1' };
+  const appEnv = { ...process.env, EKAGRACHIT_SUPPORT_DIR: support, EKAGRACHIT_SOCKET: sock, EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY: '1', EKAGRACHIT_NO_SETUP_WINDOW: '1', EKAGRACHIT_NO_HOST_REGISTRATION: '1', EKAGRACHIT_LOG_STDERR: '1' };
   let appProc: ChildProcess;
   let h: Harness;
   let env: Env;
@@ -138,6 +138,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
   };
   const waitActive = (label: string) => waitFor(async () => overlays().length, (n) => n >= 1, 20_000, label);
   const startSession = async (minutes: number) => {
+    console.log(`[test ${Date.now() / 1000}] requestStart`);
     const r = (await inSW(h, (a) => (globalThis as any).__ekagrachit.requestStart(a.t, a.m), { t: DOC_A, m: minutes })) as { ok: boolean; error?: string };
     assert.ok(r.ok, `start failed: ${r.error}`);
     await waitFor(() => session(h), (s) => !!s?.windowId, 15_000, 'focus window created');
