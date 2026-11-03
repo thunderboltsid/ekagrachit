@@ -50,15 +50,15 @@ jobs:
 
   macos:
     name: macOS app (build, test, bundle)
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - run: sw_vers && swift --version
       - name: Test core
         working-directory: apps/macos
         run: swift build && swift test
-      - name: Build app bundle (universal, ad-hoc signed)
-        run: UNIVERSAL=1 scripts/build-app.sh
+      - name: Build app bundle (arm64, ad-hoc signed)
+        run: scripts/build-app.sh
       - name: Smoke-test bundle
         run: |
           APP=apps/macos/build/Ekagrachit.app
@@ -71,7 +71,9 @@ jobs:
         with:
           node-version: 22
       - name: Launch the real app and drive it through the real host
-        run: node scripts/ci-macos-smoke.mjs apps/macos/build/Ekagrachit.app
+        env:
+          EK_ARTIFACTS: ${{ github.workspace }}/desktop-artifacts
+        run: mkdir -p desktop-artifacts && node scripts/ci-macos-smoke.mjs apps/macos/build/Ekagrachit.app
       - name: Build extension
         working-directory: extensions/chrome
         run: npm ci && npm run build
@@ -121,9 +123,3 @@ jobs:
           name: ekagrachit-macos-unsigned
           path: dist
 
-  macos26-probe:
-    name: Probe macos-26 runner (informational)
-    runs-on: macos-26
-    continue-on-error: true
-    steps:
-      - run: sw_vers; uname -m; xcodebuild -version; swift --version; ls /Applications | grep -i xcode

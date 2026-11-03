@@ -57,7 +57,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
   const server = new TestServer();
   const support = mkdtempSync('/tmp/ek-mac-');
   const sock = join(support, 'b.sock');
-  const appEnv = { ...process.env, EKAGRACHIT_SUPPORT_DIR: support, EKAGRACHIT_SOCKET: sock, EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY: '1' };
+  const appEnv = { ...process.env, EKAGRACHIT_SUPPORT_DIR: support, EKAGRACHIT_SOCKET: sock, EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY: '1', EKAGRACHIT_NO_SETUP_WINDOW: '1' };
   let appProc: ChildProcess;
   let h: Harness;
   let env: Env;
@@ -97,6 +97,9 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const coveredOutside = ov.reduce((a, o) => a + inter(o, screen) - inter(o, hole), 0);
     const expected = screen.w * screen.h - inter(hole, screen);
     assert.ok(Math.abs(coveredOutside - expected) <= 4 * (screen.w + screen.h), `overlays cover ${coveredOutside} outside the hole, expected ≈${expected}`);
+    for (const w of all.filter((x) => x.pid === appPid() && x.layer !== OVERLAY_LAYER && x.layer !== OVERLAY_LAYER + 1)) {
+      assert.equal(inter(w, hole), 0, `an Ekagrachit window (layer ${w.layer}, e.g. the menu) is open over the focus window: ${JSON.stringify(w)}`);
+    }
     for (const hud of all.filter((w) => w.pid === appPid() && w.layer === OVERLAY_LAYER + 1)) {
       assert.equal(inter(hud, popup), 0, `time pill ${JSON.stringify(hud)} overlaps the focus window ${JSON.stringify(popup)}`);
     }
@@ -184,8 +187,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
       probe('click', String(item.x + item.w / 2), String(item.y + item.h / 2));
       await sleep(1500);
       shot('00b-menu-idle');
-      probe('key', '53');
-      await sleep(500);
+      // Left open on purpose: starting a session must close it (asserted next).
     }
   });
 

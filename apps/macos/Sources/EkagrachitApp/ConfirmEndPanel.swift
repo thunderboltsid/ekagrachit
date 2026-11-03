@@ -11,11 +11,10 @@ final class ConfirmEndPanel: NSPanel {
     var onCancel: (() -> Void)?
 
     init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 168), styleMask: [.titled, .nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 168), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         level = confirmLevel
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        titleVisibility = .hidden
-        titlebarAppearsTransparent = true
+        hasShadow = true
         isMovableByWindowBackground = true
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
@@ -27,6 +26,7 @@ final class ConfirmEndPanel: NSPanel {
         body.font = .systemFont(ofSize: 12)
         body.textColor = .secondaryLabelColor
         let cancel = NSButton(title: "Keep focusing", target: nil, action: nil)
+        cancel.bezelStyle = .glass
         cancel.keyEquivalent = "\u{1b}"
         cancel.target = self
         cancel.action = #selector(cancelPressed)
@@ -39,11 +39,9 @@ final class ConfirmEndPanel: NSPanel {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 28, left: 20, bottom: 18, right: 20)
+        stack.edgeInsets = NSEdgeInsets(top: 20, left: 22, bottom: 20, right: 22)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        let root = NSVisualEffectView()
-        root.material = .popover
-        root.state = .active
+        let root = NSView()
         root.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -54,7 +52,12 @@ final class ConfirmEndPanel: NSPanel {
             hold.widthAnchor.constraint(equalToConstant: 170),
             hold.heightAnchor.constraint(equalToConstant: 28),
         ])
-        contentView = root
+        let glass = NSGlassEffectView()
+        glass.cornerRadius = 18
+        glass.contentView = root
+        contentView = glass
+        isOpaque = false
+        backgroundColor = .clear
     }
 
     override var canBecomeKey: Bool { true }

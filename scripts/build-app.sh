@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Builds Ekagrachit.app (menu bar app + bundled native messaging host).
-#   scripts/build-app.sh                 # release build for this Mac's architecture
-#   UNIVERSAL=1 scripts/build-app.sh     # arm64 + x86_64
+#   scripts/build-app.sh                 # release build (macOS 26+, Apple Silicon)
 #   SIGN_IDENTITY="Developer ID Application: …" scripts/build-app.sh
 # Output: apps/macos/build/Ekagrachit.app
 set -euo pipefail
@@ -11,8 +10,7 @@ CONFIG="${CONFIG:-release}"
 [[ "$(uname)" == "Darwin" ]] || { echo "build-app.sh must run on macOS" >&2; exit 1; }
 
 cd "$PKG"
-ARCH_FLAGS=()
-if [[ "${UNIVERSAL:-0}" == "1" ]]; then ARCH_FLAGS=(--arch arm64 --arch x86_64); fi
+ARCH_FLAGS=(--arch arm64)
 swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --product Ekagrachit
 swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --product ekagrachit-host
 BIN="$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"

@@ -64,6 +64,8 @@ final class FocusSessionCoordinator: ObservableObject {
     private var hotKey: HotKey?
     private var lastRefocus = Date.distantPast
     private var focusDebouncer = FocusLossDebouncer()
+    private var hudFlash: (text: String, until: Date)?
+    private let toast = ToastPanel()
     private var exemptPidsCache: Set<Int32> = []
     private var exemptPidsAt = Date.distantPast
     private var ticks = 0
@@ -144,7 +146,15 @@ final class FocusSessionCoordinator: ObservableObject {
             return report(rejection)
         }
         message = nil
+        closeMenuWindow()
         return nil
+    }
+
+    /// The menu-bar window must not stay open over the focus window.
+    private func closeMenuWindow() {
+        for w in NSApp.windows where w.isVisible && String(describing: type(of: w)).contains("MenuBarExtra") {
+            w.close()
+        }
     }
 
     /// Cancel while still preparing (nothing is enforced yet), or ask for
@@ -225,9 +235,11 @@ final class FocusSessionCoordinator: ObservableObject {
         case .clearPersisted:
             store.clear()
         case .sessionStarted:
+            closeMenuWindow()
             runShortcut(settings.startShortcut)
         case let .sessionEnded(reason):
             runShortcut(settings.endShortcut)
+            if reason == .expired { toast.show("Focus session complete") }
             switch reason {
             case .expired, .userEnded: message = nil
             case .startFailed: message = message ?? "The focus window could not be set up. Is the Chrome extension enabled?"
@@ -312,6 +324,7 @@ final class FocusSessionCoordinator: ObservableObject {
         case let .windowLost(sid):
             dispatch(.windowLost(sid: sid))
         case .violation:
+            flashHUD("Back to your focus")
             evaluateFocus()
         case let .sessionClosed(sid, _):
             dispatch(.extensionClosed(sid: sid))
@@ -410,6 +423,7 @@ final class FocusSessionCoordinator: ObservableObject {
             overlays.setSuspended(false)
             overlays.show(hole: info?.bounds, shielded: false, patches: patches)
         case .closeHoleAndRefocus:
+            if hudFlash == nil || hudFlash!.until < Date() { flashHUD("Back to your focus") }
             overlays.setSuspended(false)
             overlays.show(hole: info?.bounds, shielded: true) // close the hole first, then restore
             refocus(force: false)
@@ -445,10 +459,20 @@ final class FocusSessionCoordinator: ObservableObject {
         if let id = activeConnection { bridge.send(.focus(sid: sid), to: id) }
     }
 
+    /// Brief, quiet feedback in the pill so a blocked action isn't silent.
+    private func flashHUD(_ text: String) {
+        hudFlash = (text, Date().addingTimeInterval(2.5))
+        updateHUD()
+    }
+
     private func updateHUD() {
         guard overlays.isShown else { return }
         var detail: String?
-        if machine.phase == .degraded {
+        if let flash = hudFlash, flash.until > Date() {
+            detail = flash.text
+        } else if machine.phase == .active, remaining <= 60 {
+            detail = "Ending soon"
+        } else if machine.phase == .degraded {
             switch machine.session?.degradedReason {
             case .extensionDisconnected?: detail = "Chrome extension disconnected"
             case .focusWindowMissing?: detail = "Reopening focus window…"

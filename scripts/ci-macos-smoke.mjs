@@ -42,6 +42,12 @@ while (!existsSync(sock)) {
   await new Promise((r) => setTimeout(r, 200));
 }
 console.log('app started; socket ready');
+// First launch without an extension: the setup window should appear after ~4 s.
+await new Promise((r) => setTimeout(r, 5500));
+if (process.env.EK_ARTIFACTS) {
+  spawn('screencapture', ['-x', join(process.env.EK_ARTIFACTS, '00-setup-window.png')]);
+  await new Promise((r) => setTimeout(r, 1000));
+}
 
 host = spawn(join(app, 'Contents/MacOS/ekagrachit-host'), ['chrome-extension://dpbpdbflelamfpmehknioljngeaagaeb/'], { env, stdio: ['pipe', 'pipe', 'inherit'] });
 let buf = Buffer.alloc(0);

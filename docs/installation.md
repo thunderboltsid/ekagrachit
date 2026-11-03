@@ -1,9 +1,9 @@
 # Installation
 
-Requirements: macOS 13 Ventura or later, Google Chrome 120+.
+Requirements: macOS 26 Tahoe or later on Apple Silicon, Google Chrome 120+.
 
 ## Option A — build from source (recommended)
-Needs Xcode 15.3+ (or the Command Line Tools with Swift 5.10+) and Node.js 22.18+.
+Needs Xcode 26+ and Node.js 22.18+.
 
 ```bash
 git clone https://github.com/thunderboltsid/ekagrachit

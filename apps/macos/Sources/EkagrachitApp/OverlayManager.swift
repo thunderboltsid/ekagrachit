@@ -191,38 +191,28 @@ final class HUDPanel: NSPanel {
         hidesOnDeactivate = false
         animationBehavior = .none
 
-        let bg = NSVisualEffectView()
-        bg.material = .hudWindow
-        bg.blendingMode = .behindWindow
-        bg.state = .active
-        bg.wantsLayer = true
-        bg.layer?.cornerRadius = HUDPanel.height / 2
-        bg.layer?.masksToBounds = true
-
-        label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         label.textColor = .labelColor
         detail.font = .systemFont(ofSize: 11)
         detail.textColor = .secondaryLabelColor
         detail.lineBreakMode = .byTruncatingTail
-        endButton.bezelStyle = .inline
-        endButton.controlSize = .small
+        endButton.bezelStyle = .glass
+        endButton.controlSize = .mini
+        endButton.font = .systemFont(ofSize: 11, weight: .medium)
         endButton.target = self
         endButton.action = #selector(endPressed)
         endButton.setAccessibilityLabel("End focus session early")
+        endButton.toolTip = "End early (\(HotKey.emergencyDisplay))"
 
         let stack = NSStackView(views: [label, detail, endButton])
         stack.orientation = .horizontal
+        stack.alignment = .centerY
         stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 1, left: 10, bottom: 1, right: 6)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        bg.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: bg.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: bg.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: bg.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: bg.bottomAnchor),
-        ])
-        contentView = bg
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 11, bottom: 0, right: 3)
+        let glass = NSGlassEffectView()
+        glass.cornerRadius = HUDPanel.height / 2
+        glass.contentView = stack
+        contentView = glass
     }
 
     override var canBecomeKey: Bool { false }
@@ -266,5 +256,59 @@ final class HUDPanel: NSPanel {
         let s = max(0, Int(t.rounded(.up)))
         let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
+    }
+}
+
+/// A small transient notice shown after a session ends (e.g. "Focus session
+/// complete"): non-activating, click-through, fades out on its own.
+final class ToastPanel: NSPanel {
+    private let label = NSTextField(labelWithString: "")
+    private var hideWork: DispatchWorkItem?
+
+    init() {
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 260, height: 44), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        level = hudLevel
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        ignoresMouseEvents = true
+        isReleasedWhenClosed = false
+        hidesOnDeactivate = false
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.alignment = .center
+        let container = NSView()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        ])
+        let glass = NSGlassEffectView()
+        glass.cornerRadius = 22
+        glass.contentView = container
+        contentView = glass
+    }
+
+    override var canBecomeKey: Bool { false }
+
+    func show(_ text: String, for seconds: TimeInterval = 3.5) {
+        label.stringValue = text
+        let width = max(220, label.intrinsicContentSize.width + 48)
+        if let screen = NSScreen.main ?? NSScreen.screens.first {
+            let f = screen.visibleFrame
+            setFrame(NSRect(x: f.midX - width / 2, y: f.maxY - 44 - 24, width: width, height: 44), display: true)
+        }
+        alphaValue = 1
+        orderFrontRegardless()
+        hideWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.4
+                self?.animator().alphaValue = 0
+            }, completionHandler: { self?.orderOut(nil) })
+        }
+        hideWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
     }
 }
