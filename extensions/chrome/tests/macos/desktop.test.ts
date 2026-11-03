@@ -194,7 +194,15 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
       writeFileSync(join(d, `${HOST_NAME}.json`), JSON.stringify(manifest));
     }
     h = await launch({ server, extId: id, nativeHostManifest: () => manifest });
-    await waitFor(() => inSW(h, () => (globalThis as any).__ekagrachit.bridge.status as string), (s) => s === 'app_connected', 20_000, 'extension connected to app');
+    // Cold runners: the first exec of the freshly built host can wait on
+    // macOS's first-run security assessment, so allow a generous first connect
+    // (the extension retries on its own; users never see a failure here).
+    try {
+      await waitFor(() => inSW(h, () => (globalThis as any).__ekagrachit.bridge.status as string), (s) => s === 'app_connected', 60_000, 'extension connected to app');
+    } catch (e) {
+      console.log('bridge at timeout:', JSON.stringify(await inSW(h, () => ({ status: (globalThis as any).__ekagrachit.bridge.status, lastError: (globalThis as any).__ekagrachit.bridge.lastError }))));
+      throw e;
+    }
   });
 
   after(async () => {
