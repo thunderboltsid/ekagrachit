@@ -8,8 +8,9 @@
           --accent: #f5f5f4; --accent-fg: #1c1917; --sel: #3a3532; --warn: #f59e0b; --err: #f87171; }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); }
-body { width: 340px; }
+body { width: 340px; overflow-x: hidden; }
 body.window { width: auto; }
 main { padding: 16px; display: grid; gap: 12px; }
 header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -22,7 +23,7 @@ fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
 input { width: 100%; font: inherit; color: var(--fg); background: var(--field); border: 1px solid var(--line);
         border-radius: 6px; padding: 7px 8px; }
 input:focus-visible, button:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
-.durations { display: grid; grid-template-columns: repeat(4, 1fr) 1.4fr; gap: 6px; }
+.durations { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.4fr); gap: 6px; }
 .durations button { font: inherit; padding: 6px 0; border-radius: 6px; border: 1px solid var(--line);
                     background: transparent; color: var(--fg); cursor: pointer; }
 .durations button[aria-checked="true"] { background: var(--sel); border-color: var(--fg); }

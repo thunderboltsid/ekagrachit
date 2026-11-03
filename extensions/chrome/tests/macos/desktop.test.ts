@@ -171,6 +171,24 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     await server.stop();
   });
 
+  test('UI capture: menu bar window and the overlay over busy content', async () => {
+    // Busy, colourful content behind the overlay so the frosting can be judged.
+    execFileSync('open', ['-a', 'Calculator']);
+    execFileSync('open', ['/System/Library/Desktop Pictures']);
+    await sleep(2500);
+    shot('00a-desktop-before');
+    // Click Ekagrachit's status item (a small window of ours in the menu-bar strip).
+    const item = appWindows().find((w) => w.layer === 25 && w.y < 30 && w.w < 200);
+    console.log('status item:', JSON.stringify(item));
+    if (item) {
+      probe('click', String(item.x + item.w / 2), String(item.y + item.h / 2));
+      await sleep(1500);
+      shot('00b-menu-idle');
+      probe('key', '53');
+      await sleep(500);
+    }
+  });
+
   test('session becomes active: popup is the only uncovered thing on screen', async () => {
     await startSession(10);
     const popup = await popupBounds();
