@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.2
+
+- **Google Docs works.** Real Google document ids made Chrome reject the
+  blocking rule (a 2 KB regex limit our short test ids never hit). Google
+  Docs and Drive now use rules Chrome accepts for any id, and if Chrome ever
+  rejects a rule the session still runs, held by the navigation guard.
+- **Errors you can read.** No raw browser errors in the menu: one sentence
+  saying what happened and what to do.
+- **One front door.** Everything starts from ◎ in the menu bar. The Chrome
+  extension has no controls of its own; its toolbar button opens
+  Ekagrachit's menu with the current tab filled in.
+- **A quieter menu.** One gear for Settings, About and Quit; small section
+  labels; plain-number durations; hints moved into tooltips.
+- **Today's focus.** The menu shows today's focused time and your day streak
+  (dates and minutes only, kept on your Mac); the end-of-session note names
+  what you focused on.
+
 ## 0.1.1
 
 First release.

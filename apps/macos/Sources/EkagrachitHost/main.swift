@@ -20,7 +20,7 @@ import Darwin
 import Glibc
 #endif
 
-let hostVersion = "0.1.1"
+let hostVersion = "0.1.2"
 signal(SIGPIPE, SIG_IGN)
 
 func log(_ s: String) {
