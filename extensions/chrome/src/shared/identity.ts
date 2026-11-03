@@ -438,26 +438,54 @@ export function acceptsLandingAliases(identity: Identity): boolean {
 // legitimate navigation would be blocked. Tested in identity.test.ts.
 // ---------------------------------------------------------------------------
 
-export interface AllowPattern {
-  regex: string;
-  caseSensitive: boolean;
+/**
+ * A declarativeNetRequest condition: a regex (RE2) or, where a regex would be
+ * too expensive, a urlFilter. Chrome rejects regexes whose compiled form
+ * exceeds 2 KB, and long literals after a variable-length part (a real Google
+ * document id after "any account prefix") cross that line. urlFilters have no
+ * such limit.
+ */
+export type AllowPattern =
+  | { regex: string; caseSensitive: boolean; urlFilter?: undefined }
+  | { urlFilter: string; caseSensitive: boolean; regex?: undefined };
+
+/**
+ * The JavaScript equivalent of a pattern, for tests and diagnostics. urlFilter
+ * syntax: leading "|" anchors the start, "*" is any run of characters, "^" is
+ * a separator (anything but a letter, digit, "_", "-", ".", "%") or the end.
+ */
+export function patternRegExp(p: AllowPattern): RegExp {
+  if (p.regex !== undefined) return new RegExp(p.regex, p.caseSensitive ? '' : 'i');
+  let src = '';
+  const f = p.urlFilter;
+  let i = 0;
+  if (f.startsWith('|')) { src = '^'; i = 1; }
+  for (; i < f.length; i++) {
+    const c = f[i]!;
+    if (c === '*') src += '.*';
+    else if (c === '^') src += '(?:[^A-Za-z0-9_.%-]|$)';
+    else if (c === '|' && i === f.length - 1) src += '$';
+    else src += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(src, p.caseSensitive ? '' : 'i');
 }
 
 export function allowPatterns(identity: Identity): AllowPattern[] {
   const tail = '([/?#].*)?$';
   switch (identity.kind) {
     case 'google': {
-      const id = identity.docId; // [A-Za-z0-9_-] only, no escaping needed
+      // urlFilters, not regexes: real document ids (44 characters, 80+ for
+      // published ones) behind "any /a/domain/ or /u/N/ prefix" exceed
+      // Chrome's regex memory limit. "^" after the id stops prefix
+      // extensions (ids are [A-Za-z0-9_-], none of which is a separator).
+      // Looser than the matcher on the path before the id; the event guard
+      // reverts the rare URL that passes here but is not the document.
+      const id = identity.docId;
       const pub = identity.published ? 'e/' : '';
-      const patterns: AllowPattern[] = [
-        {
-          regex: `^https://docs\\.google\\.com/(a/[^/]+/)?(${GOOGLE_DOC_SERVICES})/(u/[0-9]+/)?d/${pub}${id}${tail}`,
-          caseSensitive: true,
-        },
-      ];
+      const patterns: AllowPattern[] = [{ urlFilter: `|https://docs.google.com/*/d/${pub}${id}^`, caseSensitive: true }];
       if (!identity.published) {
-        patterns.push({ regex: `^https://drive\\.google\\.com/(u/[0-9]+/)?file/d/${id}${tail}`, caseSensitive: true });
-        patterns.push({ regex: `^https://drive\\.google\\.com/(u/[0-9]+/)?open/?\\?(.*&)?id=${id}(&.*)?$`, caseSensitive: true });
+        patterns.push({ urlFilter: `|https://drive.google.com/*file/d/${id}^`, caseSensitive: true });
+        patterns.push({ urlFilter: `|https://drive.google.com/*open*id=${id}^`, caseSensitive: true });
       }
       return patterns;
     }

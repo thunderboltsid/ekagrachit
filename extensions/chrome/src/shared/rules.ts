@@ -31,6 +31,7 @@ export interface DnrRule {
     tabIds?: number[];
     excludedTabIds?: number[];
     regexFilter?: string;
+    urlFilter?: string;
     isUrlFilterCaseSensitive?: boolean;
   };
 }
@@ -77,7 +78,7 @@ export function buildRules(input: RuleInput): DnrRule[] {
       condition: {
         resourceTypes: ['main_frame'],
         tabIds: [input.focusTabId],
-        regexFilter: p.regex,
+        ...(p.regex !== undefined ? { regexFilter: p.regex } : { urlFilter: p.urlFilter }),
         isUrlFilterCaseSensitive: p.caseSensitive,
       },
     });

@@ -476,7 +476,8 @@ final class FocusSessionCoordinator: ObservableObject {
             do {
                 try store.save(PersistedSession(sid: s.sid, target: s.target, startedAt: s.startedAt, deadline: s.deadline, app: s.app))
             } catch {
-                message = "Could not save session state: \(error.localizedDescription)"
+                Log.info("could not save session: \(error)")
+                message = "This session couldn't be saved, so it won't survive a restart. It is still running."
             }
         case .clearPersisted:
             store.clear()
@@ -639,10 +640,20 @@ final class FocusSessionCoordinator: ObservableObject {
             }
         case let .sessionClosed(sid, _):
             dispatch(.extensionClosed(sid: sid))
-        case let .error(sid, _, text):
-            if sid == nil || sid == machine.session?.sid { message = text }
+        case let .error(sid, code, text):
+            // Technical detail goes to the log; people get a sentence.
+            Log.info("extension error \(code): \(text)")
+            if sid == nil || sid == machine.session?.sid { message = Self.friendly(code: code) }
         case .hostHello, .hello:
             break
+        }
+    }
+
+    static func friendly(code: String) -> String {
+        switch code {
+        case "window_create_failed": return "Chrome couldn't open a focus window. Try again in a moment."
+        case "invalid_target": return "That link can't be focused on. Try copying it from the address bar."
+        default: return "Something went wrong in Chrome. Try again in a moment."
         }
     }
 

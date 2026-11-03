@@ -6,6 +6,7 @@ import {
   allowPatterns,
   authPatterns,
   describe,
+  patternRegExp,
   evaluate,
   parseTarget,
   sameResource,
@@ -204,11 +205,11 @@ test('DNR allow regexes agree with the matcher', () => {
   // Documented looseness: DNR cannot normalise queries, so a different query on
   // the same page passes DNR and is reverted by the event-driven guard instead.
   const page = id('https://example.com/');
-  assert.ok(allowPatterns(page).some((p) => new RegExp(p.regex).test('https://example.com/?q=1')));
+  assert.ok(allowPatterns(page).some((p) => patternRegExp(p).test('https://example.com/?q=1')));
   assert.ok(!sameResource(page, 'https://example.com/?q=1'));
   for (const [target, allowed, denied] of cases) {
     const ident = id(target);
-    const res = allowPatterns(ident).map((p) => new RegExp(p.regex, p.caseSensitive ? '' : 'i'));
+    const res = allowPatterns(ident).map((p) => patternRegExp(p));
     const hit = (u: string) => res.some((r) => r.test(new URL(u).href));
     for (const u of allowed) {
       assert.ok(sameResource(ident, u), `matcher should allow ${u}`);
@@ -216,7 +217,7 @@ test('DNR allow regexes agree with the matcher', () => {
     }
     for (const u of denied) assert.ok(!hit(u), `DNR regex should block ${u}`);
   }
-  const auth = authPatterns(id(DOC_A)).map((p) => new RegExp(p.regex, 'i'));
+  const auth = authPatterns(id(DOC_A)).map((p) => patternRegExp(p));
   assert.ok(auth.some((r) => r.test('https://accounts.google.com/v3/signin/identifier?x')));
   assert.ok(!auth.some((r) => r.test('https://accounts.google.com.evil/')));
 });
@@ -341,7 +342,7 @@ for (const c of SERVICE_CASES) {
     const ident = id(c.target);
     assert.equal(ident.kind, 'service', `${c.target} should be recognised`);
     assert.equal(describe(ident), c.label);
-    const res = allowPatterns(ident).map((p) => new RegExp(p.regex, p.caseSensitive ? '' : 'i'));
+    const res = allowPatterns(ident).map((p) => patternRegExp(p));
     const hit = (u: string) => res.some((r) => r.test(new URL(u).href));
     for (const u of [c.target, ...c.same]) {
       assert.ok(sameResource(ident, u), `matcher should allow ${u}`);
@@ -366,7 +367,7 @@ test('web app sign-in pages are auth, not the resource', () => {
   for (const [target, auth, deny] of cases) {
     const p = policy(target);
     assert.equal(evaluate(p, auth), 'auth', auth);
-    assert.ok(authPatterns(p.primary).some((r) => new RegExp(r.regex, 'i').test(auth)), `auth regex ${auth}`);
+    assert.ok(authPatterns(p.primary).some((r) => patternRegExp(r).test(auth)), `auth regex ${auth}`);
     assert.equal(evaluate(p, deny), 'deny', deny);
   }
 });

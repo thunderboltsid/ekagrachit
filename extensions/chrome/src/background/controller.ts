@@ -292,8 +292,9 @@ export class FocusController {
     try {
       await this.createFocusWindow();
     } catch (e) {
-      this.lastError = `Could not open the focus window: ${String(e)}`;
-      this.send({ v: 1, type: 'error', sid, code: 'window_create_failed', message: String(e) });
+      console.error('[ekagrachit] could not open the focus window', e);
+      this.lastError = "Chrome couldn't open a focus window. Try again in a moment.";
+      this.send({ v: 1, type: 'error', sid, code: 'window_create_failed', message: String(e).slice(0, 200) });
       await this.end('start_failed');
       return { ok: false, error: this.lastError };
     }
@@ -787,11 +788,22 @@ export class FocusController {
   private async applyRules(): Promise<void> {
     const rec = this.rec;
     if (!rec || rec.tabId === null) return;
-    const addRules = buildRules({ policy: rec.policy, focusTabId: rec.tabId, preexistingTabIds: rec.preexistingTabIds, armed: rec.armed });
-    await chrome.declarativeNetRequest.updateSessionRules({
-      removeRuleIds: allRuleIds(),
-      addRules: addRules as chrome.declarativeNetRequest.Rule[],
-    });
+    const input = { policy: rec.policy, focusTabId: rec.tabId, preexistingTabIds: rec.preexistingTabIds, armed: rec.armed };
+    try {
+      await chrome.declarativeNetRequest.updateSessionRules({
+        removeRuleIds: allRuleIds(),
+        addRules: buildRules(input) as chrome.declarativeNetRequest.Rule[],
+      });
+    } catch (e) {
+      // Chrome refused a rule (e.g. a regex over its size limit). Never fail
+      // the session for it: keep other tabs blocked and let the navigation
+      // guard hold the focus tab (off-target pages are reverted, not pre-empted).
+      console.error('[ekagrachit] blocking rules rejected; the navigation guard holds the focus tab', e);
+      await chrome.declarativeNetRequest.updateSessionRules({
+        removeRuleIds: allRuleIds(),
+        addRules: buildRules({ ...input, armed: false }) as chrome.declarativeNetRequest.Rule[],
+      });
+    }
   }
 
   private async clearRules(): Promise<void> {

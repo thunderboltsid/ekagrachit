@@ -29,7 +29,8 @@ test('armed focus tab: block-all plus higher-priority allow rules scoped to the 
   for (const a of allows) {
     assert.deepEqual(a.condition.tabIds, [7]);
     assert.ok(a.priority > block.priority);
-    assert.ok(a.condition.regexFilter && a.condition.regexFilter.length < 1024);
+    const f = a.condition.regexFilter ?? a.condition.urlFilter;
+    assert.ok(f && f.length < 1024);
   }
   const ids = new Set(rules.map((r) => r.id));
   assert.equal(ids.size, rules.length);
