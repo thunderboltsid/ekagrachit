@@ -8,12 +8,15 @@ public struct PersistedSession: Codable, Equatable, Sendable {
     public var target: String
     public var startedAt: TimeInterval
     public var deadline: Deadline
+    /// Native-window target (absent for web sessions and older files).
+    public var app: NativeWindowTarget?
 
-    public init(sid: String, target: String, startedAt: TimeInterval, deadline: Deadline) {
+    public init(sid: String, target: String, startedAt: TimeInterval, deadline: Deadline, app: NativeWindowTarget? = nil) {
         self.sid = sid
         self.target = target
         self.startedAt = startedAt
         self.deadline = deadline
+        self.app = app
     }
 }
 

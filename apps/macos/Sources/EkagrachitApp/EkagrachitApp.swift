@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showSetupIfNeeded() {
         let firstLaunch = !UserDefaults.standard.bool(forKey: "setupShown")
-        let ready = coordinator.extensionConnected && Permissions.accessibilityTrusted
+        let ready = Permissions.accessibilityTrusted // the Chrome extension is optional (web pages only)
         guard firstLaunch || !ready, !coordinator.isSessionRunning,
               ProcessInfo.processInfo.environment["EKAGRACHIT_NO_SETUP_WINDOW"] != "1" else { return }
         UserDefaults.standard.set(true, forKey: "setupShown")
@@ -108,6 +108,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate()
         aboutWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// ekagrachit://focus?… (Shortcuts, Raycast, Alfred, scripts).
+    func application(_ application: NSApplication, open urls: [URL]) {
+        urls.forEach { coordinator.handleURL($0) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

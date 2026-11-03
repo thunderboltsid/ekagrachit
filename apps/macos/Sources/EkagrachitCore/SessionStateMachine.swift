@@ -50,6 +50,9 @@ public struct SessionContext: Equatable, Sendable {
     public var overlaysUp: Bool = false
     public var degradedReason: DegradedReason?
     public var recovering: Bool = false
+    /// Set for native-window sessions; nil for web (Chrome) sessions.
+    public var app: NativeWindowTarget?
+    public var isWeb: Bool { app == nil }
 
     public init(sid: String, target: String, deadline: Deadline, startedAt: TimeInterval, recovering: Bool = false) {
         self.sid = sid
@@ -73,6 +76,8 @@ public struct MachineState: Equatable, Sendable {
 
 public enum MachineEvent: Equatable, Sendable {
     case startRequested(sid: String, target: String, duration: TimeInterval)
+    /// Focus a native Mac window. Needs no Chrome extension.
+    case startAppRequested(sid: String, app: NativeWindowTarget, duration: TimeInterval)
     case restore(PersistedSession)
     case adoptRequested(sid: String, target: String, remaining: TimeInterval)
     case extensionConnected
@@ -94,6 +99,8 @@ public enum MachineEffect: Equatable, Sendable {
     case syncExtension
     /// Find the native window for the extension's popup (pid + bounds).
     case locateNativeWindow(windowId: Int, bounds: Rect)
+    /// Find (or find again) the window of a native-app target.
+    case locateAppWindow(NativeWindowTarget)
     case stopWindowTracking
     case showOverlays
     case hideOverlays
@@ -136,7 +143,7 @@ public enum SessionStateMachine {
             st.lastEnd = reason
             fx += [.hideOverlays, .stopWindowTracking, .clearPersisted]
             st.session?.overlaysUp = false
-            if st.extensionConnected {
+            if st.extensionConnected, st.session?.isWeb == true {
                 enter(.ending) // wait briefly for the extension to close its window
                 fx.append(.syncExtension)
             } else {
@@ -152,7 +159,7 @@ public enum SessionStateMachine {
         func reject(_ why: String) -> Transition { Transition(state: s, effects: [], rejection: why) }
         func matches(_ sid: String) -> Bool { st.session?.sid == sid && st.phase != .idle && st.phase != .ending }
         func maybeActivate() {
-            guard let sess = st.session, sess.nativeWindow != nil, sess.overlaysUp, st.extensionConnected else { return }
+            guard let sess = st.session, sess.nativeWindow != nil, sess.overlaysUp, st.extensionConnected || !sess.isWeb else { return }
             switch st.phase {
             case .preparing:
                 enter(.active)
@@ -186,6 +193,16 @@ public enum SessionStateMachine {
             enter(.preparing)
             fx += [.persist, .syncExtension]
 
+        case let .startAppRequested(sid, app, duration):
+            guard st.phase == .idle else { return reject("A focus session is already running.") }
+            guard duration >= config.minDuration, duration <= config.maxDuration else { return reject("Duration must be between 1 minute and 8 hours.") }
+            var sess = SessionContext(sid: sid, target: app.displayName, deadline: Deadline(start: now, duration: duration), startedAt: now.wall)
+            sess.app = app
+            st.session = sess
+            st.lastEnd = nil
+            enter(.preparing)
+            fx += [.persist, .locateAppWindow(app)]
+
         case let .restore(p):
             guard st.phase == .idle else { return reject("busy") }
             let remaining = p.deadline.remaining(at: now)
@@ -193,9 +210,15 @@ public enum SessionStateMachine {
                 fx.append(.clearPersisted)
                 break
             }
-            st.session = SessionContext(sid: p.sid, target: p.target, deadline: p.deadline, startedAt: p.startedAt, recovering: true)
+            var sess = SessionContext(sid: p.sid, target: p.target, deadline: p.deadline, startedAt: p.startedAt, recovering: true)
+            sess.app = p.app
+            st.session = sess
             enter(.preparing)
-            fx.append(.syncExtension)
+            if let app = p.app {
+                fx.append(.locateAppWindow(app))
+            } else {
+                fx.append(.syncExtension)
+            }
 
         case let .adoptRequested(sid, target, remaining):
             guard st.phase == .idle else { return reject("busy") }
@@ -213,7 +236,7 @@ public enum SessionStateMachine {
         case .extensionDisconnected:
             st.extensionConnected = false
             switch st.phase {
-            case .active: degrade(.extensionDisconnected)
+            case .active where st.session?.isWeb == true: degrade(.extensionDisconnected)
             case .ending: finishEnding()
             default: break
             }
@@ -249,6 +272,7 @@ public enum SessionStateMachine {
             guard matches(sid) else { break }
             st.session?.nativeWindow = nil
             degrade(.focusWindowMissing)
+            if let app = st.session?.app { fx.append(.locateAppWindow(app)) }
 
         case let .overlaysShown(sid):
             guard matches(sid) else { break }
@@ -289,7 +313,7 @@ public enum SessionStateMachine {
 
     /// What the extension should be doing right now.
     public static func desiredSession(_ s: MachineState, now: Instant) -> DesiredSession? {
-        guard let sess = s.session else { return nil }
+        guard let sess = s.session, sess.isWeb else { return nil }
         let phase: String
         switch s.phase {
         case .preparing: phase = "preparing"

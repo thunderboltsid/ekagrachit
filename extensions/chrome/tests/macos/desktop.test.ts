@@ -434,4 +434,65 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     await sleep(1200);
     shot('23-later');
   });
+
+  // ---------------------------------------------------------------- native apps
+
+  const endViaHold = async () => {
+    const confirmPanel = () => appWindows().find((w) => w.layer === OVERLAY_LAYER + 2);
+    probe('key', '14', 'ctrl,opt,cmd'); // ⌃⌥⌘E
+    await waitFor(async () => confirmPanel(), (w) => !!w, 4_000, 'confirmation panel');
+    probe('keydown', '49');
+    await sleep(3200);
+    probe('keyup', '49');
+    await waitFor(async () => overlays().length, (n) => n === 0, 6_000, 'session ended');
+  };
+  const appWindow = (owner: string) => windows().filter((w) => w.owner === owner && w.layer === 0 && w.w > 200)[0];
+
+  test('native app: ⌃⌥⌘F focuses the TextEdit window in front of you', { timeout: 120_000 }, async () => {
+    writeFileSync('/tmp/ek-notes.txt', 'Quarterly plan\n\nDraft the narrative before the numbers.\n');
+    execFileSync('open', ['-a', 'TextEdit', '/tmp/ek-notes.txt']);
+    await waitFor(async () => appWindow('TextEdit'), (w) => !!w, 10_000, 'TextEdit window');
+    probe('activate', 'com.apple.TextEdit');
+    await sleep(1000);
+    const original = appWindow('TextEdit')!;
+    probe('key', '3', 'ctrl,opt,cmd'); // ⌃⌥⌘F
+    await waitActive('native session active');
+    await sleep(800);
+    shot('30-native-textedit');
+    const rect = { x: original.x, y: original.y, w: original.w, h: original.h };
+    assertHoleAround(rect, 'textedit');
+    assert.equal(frontmost().pid, original.pid, 'TextEdit stays frontmost');
+
+    probe('activate', 'com.apple.finder');
+    await waitFor(async () => frontmost().pid, (p) => p === original.pid, 4_000, 'back to TextEdit after an app switch');
+
+    probe('key', '45', 'cmd'); // Cmd+N: a new TextEdit window must not take over
+    await sleep(2500);
+    const top = windows().find((w) => w.layer === 0);
+    assert.equal(top?.number, original.number, `the focused TextEdit window is back on top (top: ${JSON.stringify(top)})`);
+    assertHoleAround(rect, 'textedit-after-new-window');
+    shot('31-native-after-new-window');
+    await endViaHold();
+    execFileSync('pkill', ['-x', 'TextEdit']);
+  });
+
+  test('native app via ekagrachit:// URL (Shortcuts, Raycast): focus Terminal', { timeout: 120_000 }, async () => {
+    execFileSync('open', ['-a', 'Terminal']);
+    await waitFor(async () => appWindow('Terminal'), (w) => !!w, 10_000, 'Terminal window');
+    const term = appWindow('Terminal')!;
+    const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+    execFileSync(lsregister, ['-f', APP]);
+    const before = execFileSync('pgrep', ['-x', 'Ekagrachit'], { encoding: 'utf8' }).trim().split('\n');
+    execFileSync('open', ['ekagrachit://focus?app=com.apple.Terminal&minutes=5']);
+    await sleep(1500);
+    const after = execFileSync('pgrep', ['-x', 'Ekagrachit'], { encoding: 'utf8' }).trim().split('\n');
+    const extra = after.filter((p) => !before.includes(p));
+    for (const p of extra) execFileSync('kill', [p]);
+    assert.equal(extra.length, 0, 'the URL was delivered to the running app (no second instance)');
+    await waitActive('Terminal session active');
+    await sleep(800);
+    shot('32-native-terminal');
+    assertHoleAround({ x: term.x, y: term.y, w: term.w, h: term.h }, 'terminal');
+    await endViaHold();
+  });
 });

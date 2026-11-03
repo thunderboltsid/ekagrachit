@@ -29,6 +29,7 @@ enum DurationChoice: Hashable {
 struct MenuContentView: View {
     @ObservedObject var coordinator: FocusSessionCoordinator
     @State private var target = ""
+    @State private var selectedWindow: WindowCandidate?
     @State private var choice: DurationChoice = .preset(25)
     @State private var customMinutes = 90
     @FocusState private var urlFocused: Bool
@@ -71,22 +72,50 @@ struct MenuContentView: View {
             coordinator.refreshPermissions()
             let d = coordinator.settings.defaultMinutes
             if presets.contains(d) { choice = .preset(d) } else { choice = .custom; customMinutes = d }
-            urlFocused = true
-            coordinator.refreshSuggestion()
+            coordinator.refreshWindowChoices()
+            // Start from what you were just doing: the page you were reading,
+            // or the window you were working in.
+            if coordinator.lastAppWasBrowser || coordinator.windowChoices.isEmpty {
+                urlFocused = true
+                coordinator.refreshSuggestion()
+            } else if let pid = coordinator.lastExternalApp?.processIdentifier {
+                selectedWindow = coordinator.windowChoices.first { $0.pid == pid }
+            }
         }
         .onChange(of: coordinator.suggestedTarget) { _, url in
-            if let url, target.isEmpty { target = url }
+            if let url, target.isEmpty, selectedWindow == nil { target = url }
         }
     }
 
     private var idleView: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("What are you focusing on?").font(.callout).foregroundStyle(.secondary)
-            TextField("https://docs.google.com/document/d/…", text: $target)
+            TextField("Paste a link — a doc, a PR, a ticket…", text: $target)
                 .textFieldStyle(.roundedBorder)
                 .focused($urlFocused)
                 .onSubmit(start)
-                .accessibilityLabel("Focus target URL")
+                .onChange(of: target) { _, v in if !v.isEmpty { selectedWindow = nil } }
+                .accessibilityLabel("Link to focus on")
+            if !coordinator.extensionConnected && !target.isEmpty {
+                HStack(spacing: 4) {
+                    Text("Links need the Chrome extension.").foregroundStyle(.secondary)
+                    Button("Set Up…") { NotificationCenter.default.post(name: FocusSessionCoordinator.showSetupNotification, object: nil) }
+                        .buttonStyle(.link)
+                }
+                .font(.caption)
+            }
+            if !coordinator.windowChoices.isEmpty {
+                Text("Or a window").font(.callout).foregroundStyle(.secondary)
+                VStack(spacing: 2) {
+                    ForEach(coordinator.windowChoices.prefix(5), id: \.number) { w in
+                        WindowRow(window: w, selected: selectedWindow?.number == w.number) {
+                            selectedWindow = w
+                            target = ""
+                            urlFocused = false
+                        }
+                    }
+                }
+            }
             Text("Duration").font(.callout).foregroundStyle(.secondary)
             Picker("Duration", selection: $choice) {
                 ForEach(presets, id: \.self) { Text("\($0)m").tag(DurationChoice.preset($0)) }
@@ -110,7 +139,9 @@ struct MenuContentView: View {
             .buttonStyle(.glassProminent)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
-            .disabled(target.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(target.trimmingCharacters(in: .whitespaces).isEmpty && selectedWindow == nil)
+            Text("Tip: \(HotKey.quickStartDisplay) focuses the window in front of you.")
+                .font(.caption).foregroundStyle(.tertiary)
         }
     }
 
@@ -150,7 +181,7 @@ struct MenuContentView: View {
 
     /// Status is plumbing: show it only when something needs you.
     private var needsAttention: Bool {
-        !coordinator.extensionConnected || !coordinator.accessibilityTrusted || coordinator.bridgeError != nil
+        !coordinator.accessibilityTrusted || coordinator.bridgeError != nil
     }
 
     private var statusRows: some View {
@@ -200,10 +231,49 @@ struct MenuContentView: View {
 
     private func start() {
         let m = minutes
-        if coordinator.startSession(target: target, minutes: m) == nil {
+        let error: String?
+        if let w = selectedWindow {
+            error = coordinator.startAppSession(w.target, minutes: m)
+        } else {
+            error = coordinator.startSession(target: target, minutes: m)
+        }
+        if error == nil {
             coordinator.settings.defaultMinutes = m
             target = ""
+            selectedWindow = nil
         }
+    }
+}
+
+/// One row in the window picker: app icon, window title, app name.
+struct WindowRow: View {
+    let window: WindowCandidate
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(nsImage: NSRunningApplication(processIdentifier: window.pid)?.icon ?? NSImage())
+                    .resizable().frame(width: 18, height: 18)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(window.title.isEmpty ? window.appName : window.title).lineLimit(1).truncationMode(.middle)
+                    if !window.title.isEmpty {
+                        Text(window.appName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+                if selected { Image(systemName: "checkmark").font(.caption.weight(.semibold)).foregroundStyle(.tint) }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(selected ? Color.accentColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(window.title.isEmpty ? window.appName : window.title), \(window.appName)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -232,6 +302,7 @@ struct SettingsView: View {
                 Toggle("Open at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, on in settings.launchAtLogin = on }
                 Toggle("Play a sound when a session ends", isOn: $settings.playEndSound)
+                LabeledContent("Focus the window in front", value: HotKey.quickStartDisplay)
                 LabeledContent("Emergency exit", value: HotKey.emergencyDisplay)
             }
             Section("About") {
@@ -268,7 +339,7 @@ struct SetupView: View {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
                 VStack(alignment: .leading, spacing: 4) {
                 Text("Set up Ekagrachit").font(.title2.weight(.semibold))
-                Text("Two things are needed before your first focus session.")
+                Text("One permission, and a browser extension if you'll focus on web pages.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("एकाग्रचित्त — what does the name mean?") {
@@ -279,7 +350,7 @@ struct SetupView: View {
                 }
             }
             step(done: coordinator.extensionConnected,
-                 title: "Chrome extension connected",
+                 title: "Chrome extension · for web pages",
                  detail: coordinator.extensionConnected
                     ? "Version \(coordinator.extensionVersion ?? "?")"
                     : "In Chrome's Extensions page, turn on Developer mode (top right), then drag the “Chrome Extension” folder onto the page.") {
@@ -293,7 +364,7 @@ struct SetupView: View {
                 }
             }
             step(done: coordinator.accessibilityTrusted,
-                 title: "Accessibility permission",
+                 title: "Accessibility permission · required",
                  detail: coordinator.accessibilityTrusted
                     ? "Lets Ekagrachit bring the focus window back when you switch away."
                     : "Lets Ekagrachit bring the focus window back when you switch away. Nothing else is read or controlled. If Ekagrachit is already listed and switched on (for example after an update), remove it with − and add it again.") {
@@ -308,13 +379,13 @@ struct SetupView: View {
             Divider()
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: "circle.circle")
-                Text("Ekagrachit lives in the menu bar. Click it to start a session; \(HotKey.emergencyDisplay) ends one early.")
+                Text("Ekagrachit lives in the menu bar. Click it to focus on a window or a link — or press \(HotKey.quickStartDisplay) to focus on the window in front of you. \(HotKey.emergencyDisplay) ends a session early.")
                     .fixedSize(horizontal: false, vertical: true)
             }
             .font(.callout)
             HStack {
                 Spacer()
-                Button(coordinator.extensionConnected && coordinator.accessibilityTrusted ? "Done" : "Later", action: onDone)
+                Button(coordinator.accessibilityTrusted ? "Done" : "Later", action: onDone)
                     .keyboardShortcut(.defaultAction)
             }
         }

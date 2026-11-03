@@ -17,6 +17,9 @@ final class HotKey {
     static let emergencyKeyCode = UInt32(kVK_ANSI_E)
     static let emergencyModifiers = UInt32(controlKey | optionKey | cmdKey)
     static let emergencyDisplay = "⌃⌥⌘E"
+    /// Quick start: focus the frontmost window for the default duration.
+    static let quickStartKeyCode = UInt32(kVK_ANSI_F)
+    static let quickStartDisplay = "⌃⌥⌘F"
 
     init(keyCode: UInt32, modifiers: UInt32, action: @escaping () -> Void) {
         id = HotKey.nextID

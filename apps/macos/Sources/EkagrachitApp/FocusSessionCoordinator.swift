@@ -92,6 +92,14 @@ final class FocusSessionCoordinator: ObservableObject {
     private var focusTimer: Timer?
     private var locateTimer: Timer?
     private var hotKey: HotKey?
+    private var quickStartHotKey: HotKey?
+    /// Windows the user can choose as a focus target (refreshed when the menu opens).
+    @Published private(set) var windowChoices: [WindowCandidate] = []
+    /// The app the user was in before opening Ekagrachit's menu.
+    private(set) var lastExternalApp: NSRunningApplication?
+    var lastAppWasBrowser: Bool { WindowCandidates.browserBundleIDs.contains(lastExternalApp?.bundleIdentifier ?? "") }
+    /// Set when ⌃⌥⌘F was pressed on a browser: start on its active tab when it answers.
+    private var quickStartWebCID: String?
     private var lastRefocus = Date.distantPast
     private var focusDebouncer = FocusLossDebouncer()
     private var hudFlash: (text: String, until: Date)?
@@ -141,6 +149,9 @@ final class FocusSessionCoordinator: ObservableObject {
             MainActor.assumeIsolated { self?.tick() }
         }
         observeSystem()
+        quickStartHotKey = HotKey(keyCode: HotKey.quickStartKeyCode, modifiers: HotKey.emergencyModifiers) { [weak self] in
+            MainActor.assumeIsolated { self?.focusFrontmostWindow() }
+        }
     }
 
     /// Makes installation "drag to Applications": register the bundled native
@@ -206,6 +217,80 @@ final class FocusSessionCoordinator: ObservableObject {
 
     /// Returns an error message, or nil if the session is starting.
     @discardableResult
+    /// Refresh the list of windows offered in the menu.
+    func refreshWindowChoices() {
+        windowChoices = WindowCandidates.rank(tracker.candidates(), ownBundleID: Bundle.main.bundleIdentifier)
+    }
+
+    /// Focus a native Mac window (Word, Pages, Cursor, iTerm2, …). No browser involved.
+    @discardableResult
+    func startAppSession(_ target: NativeWindowTarget, minutes: Int) -> String? {
+        guard (1...480).contains(minutes) else { return report("Choose a duration between 1 and 480 minutes.") }
+        accessibilityTrusted = Permissions.accessibilityTrusted
+        let allowUntrusted = ProcessInfo.processInfo.environment["EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY"] == "1"
+        guard accessibilityTrusted || allowUntrusted else {
+            Permissions.requestAccessibility()
+            return report("Ekagrachit needs the Accessibility permission to keep your window in front. Grant it in System Settings → Privacy & Security → Accessibility, then start again.")
+        }
+        tracker.beginSession(browserPid: target.pid)
+        if let rejection = dispatch(.startAppRequested(sid: BridgeProtocol.newSid(), app: target, duration: TimeInterval(minutes * 60))) {
+            return report(rejection)
+        }
+        message = nil
+        closeMenuWindow()
+        return nil
+    }
+
+    /// ⌃⌥⌘F: focus whatever you're looking at, for your usual duration.
+    func focusFrontmostWindow(minutes: Int? = nil) {
+        guard !isSessionRunning else { return }
+        let m = minutes ?? settings.defaultMinutes
+        guard let front = NSWorkspace.shared.frontmostApplication else { return }
+        let bundle = front.bundleIdentifier ?? ""
+        if WindowCandidates.browserBundleIDs.contains(bundle) {
+            guard let id = activeConnection else {
+                toast.show("To focus a web page, set up the Chrome extension (menu → Set Up…)", for: 5)
+                return
+            }
+            let cid = BridgeProtocol.newSid()
+            quickStartWebCID = cid
+            pendingQuickMinutes = m
+            bridge.send(.activeTabRequest(cid: cid), to: id)
+            return
+        }
+        guard let window = tracker.candidates().filter({ $0.pid == front.processIdentifier }).min(by: { $0.zIndex < $1.zIndex }),
+              !WindowCandidates.excludedBundleIDs.contains(bundle), bundle != Bundle.main.bundleIdentifier else {
+            toast.show("Bring the window you want to focus on to the front, then press \(HotKey.quickStartDisplay)", for: 5)
+            return
+        }
+        if let error = startAppSession(window.target, minutes: m) { toast.show(error, for: 6) }
+    }
+
+    private var pendingQuickMinutes = 25
+
+    /// ekagrachit://focus?url=…|app=<bundle id>|window=front[&minutes=N]
+    /// (for Shortcuts, Raycast, Alfred, scripts). There is deliberately no URL
+    /// to end a session: ending stays a deliberate, held action.
+    func handleURL(_ url: URL) {
+        guard url.scheme == "ekagrachit", url.host == "focus",
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return }
+        let q = Dictionary(items.compactMap { i in i.value.map { (i.name, $0) } }, uniquingKeysWith: { a, _ in a })
+        let minutes = q["minutes"].flatMap(Int.init) ?? settings.defaultMinutes
+        var error: String?
+        if let target = q["url"] {
+            error = startSession(target: target, minutes: minutes)
+        } else if let bundle = q["app"] {
+            if let w = tracker.candidates().filter({ $0.bundleID == bundle }).min(by: { $0.zIndex < $1.zIndex }) {
+                error = startAppSession(w.target, minutes: minutes)
+            } else {
+                error = "No open window of \(bundle) to focus on."
+            }
+        } else if q["window"] == "front" {
+            focusFrontmostWindow(minutes: minutes)
+        }
+        if let error { toast.show(error, for: 6) }
+    }
+
     func startSession(target: String, minutes: Int) -> String? {
         let normalized: String
         switch TargetValidation.normalize(target) {
@@ -324,6 +409,8 @@ final class FocusSessionCoordinator: ObservableObject {
         switch effect {
         case .syncExtension:
             sendSync()
+        case let .locateAppWindow(app):
+            startLocatingApp(app)
         case let .locateNativeWindow(_, bounds):
             startLocating(bounds)
         case .stopWindowTracking:
@@ -346,7 +433,7 @@ final class FocusSessionCoordinator: ObservableObject {
         case .persist:
             guard let s = machine.session else { return }
             do {
-                try store.save(PersistedSession(sid: s.sid, target: s.target, startedAt: s.startedAt, deadline: s.deadline))
+                try store.save(PersistedSession(sid: s.sid, target: s.target, startedAt: s.startedAt, deadline: s.deadline, app: s.app))
             } catch {
                 message = "Could not save session state: \(error.localizedDescription)"
             }
@@ -475,7 +562,16 @@ final class FocusSessionCoordinator: ObservableObject {
             flashHUD(host.map { "Saved for later: \($0)" } ?? "Back to your focus")
             evaluateFocus()
         case let .activeTab(cid, url):
-            if cid == pendingTabCID, url.hasPrefix("http") { suggestedTarget = url }
+            if cid == quickStartWebCID {
+                quickStartWebCID = nil
+                if url.hasPrefix("http") {
+                    if let error = startSession(target: url, minutes: pendingQuickMinutes) { toast.show(error, for: 6) }
+                } else {
+                    toast.show("Open the page you want to focus on, then press \(HotKey.quickStartDisplay)", for: 5)
+                }
+            } else if cid == pendingTabCID, url.hasPrefix("http") {
+                suggestedTarget = url
+            }
         case let .sessionClosed(sid, _):
             dispatch(.extensionClosed(sid: sid))
         case let .error(sid, _, text):
@@ -505,6 +601,29 @@ final class FocusSessionCoordinator: ObservableObject {
     }
 
     // MARK: - Window tracking
+
+    /// Native target: look for its window until found (the state machine's
+    /// timeouts end the session if it never appears).
+    private func startLocatingApp(_ app: NativeWindowTarget) {
+        locateTimer?.invalidate()
+        let attempt: () -> Bool = { [weak self] in
+            guard let self, let sid = self.machine.session?.sid, self.machine.session?.app != nil else { return true }
+            if let c = self.tracker.locateApp(app) {
+                self.dispatch(.nativeWindowFound(sid: sid, window: c.number))
+                return true
+            }
+            return false
+        }
+        if attempt() { return }
+        locateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+            MainActor.assumeIsolated {
+                if attempt() {
+                    timer.invalidate()
+                    if self?.locateTimer === timer { self?.locateTimer = nil }
+                }
+            }
+        }
+    }
 
     private func startLocating(_ bounds: Rect) {
         locateTimer?.invalidate()
@@ -606,7 +725,7 @@ final class FocusSessionCoordinator: ObservableObject {
         if !force, now.timeIntervalSince(lastRefocus) < 0.3 { return }
         lastRefocus = now
         tracker.raise(info: tracker.focusInfo())
-        if let id = activeConnection { bridge.send(.focus(sid: sid), to: id) }
+        if machine.session?.isWeb == true, let id = activeConnection { bridge.send(.focus(sid: sid), to: id) }
     }
 
     /// Brief, quiet feedback in the pill so a blocked action isn't silent.
@@ -639,6 +758,12 @@ final class FocusSessionCoordinator: ObservableObject {
     private func observeSystem() {
         let ws = NSWorkspace.shared.notificationCenter
         let evaluate: @Sendable (Notification) -> Void = { [weak self] _ in MainActor.assumeIsolated { self?.evaluateFocus() } }
+        observers.append(ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            MainActor.assumeIsolated {
+                if let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier { self?.lastExternalApp = app }
+            }
+        })
         observers.append(ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main, using: evaluate))
         observers.append(ws.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main, using: evaluate))
         observers.append(ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in

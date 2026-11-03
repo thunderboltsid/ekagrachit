@@ -90,6 +90,49 @@ final class WindowTracker {
         return nil
     }
 
+    // MARK: Native-app targets
+
+    /// Normal-level windows with their app and (via Accessibility) title,
+    /// front to back. `onScreenOnly: false` also includes minimised windows and
+    /// windows on other Spaces (used to find a target again).
+    func candidates(onScreenOnly: Bool = true) -> [WindowCandidate] {
+        let infos = Self.list(onScreenOnly ? [.optionOnScreenOnly, .excludeDesktopElements] : [.optionAll])
+            .filter { $0.layer == 0 && $0.alpha > 0.01 }
+        var titlesByPid: [Int32: [(Rect, String)]] = [:]
+        var out: [WindowCandidate] = []
+        for (z, w) in infos.enumerated() {
+            guard let app = NSRunningApplication(processIdentifier: w.pid), app.activationPolicy == .regular,
+                  let bundleID = app.bundleIdentifier else { continue }
+            if titlesByPid[w.pid] == nil { titlesByPid[w.pid] = Self.axWindowTitles(pid: w.pid) }
+            let title = titlesByPid[w.pid]?.first { $0.0.approximatelyEquals(w.bounds, tolerance: WindowMatching.boundsTolerance) }?.1 ?? ""
+            out.append(WindowCandidate(number: w.number, pid: w.pid, bundleID: bundleID, appName: app.localizedName ?? bundleID,
+                                       title: title, bounds: w.bounds, zIndex: z))
+        }
+        return out
+    }
+
+    /// Finds the target's window (again) and makes it the tracked focus window.
+    func locateApp(_ target: NativeWindowTarget) -> WindowCandidate? {
+        guard let c = WindowCandidates.relocate(target, in: candidates(onScreenOnly: false)) else { return nil }
+        focusWindow = c.number
+        browserPid = c.pid
+        return c
+    }
+
+    private static func axWindowTitles(pid: Int32) -> [(Rect, String)] {
+        guard AXIsProcessTrusted() else { return [] }
+        let app = AXUIElementCreateApplication(pid)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else { return [] }
+        return windows.compactMap { w in
+            guard let f = frame(of: w) else { return nil }
+            var t: CFTypeRef?
+            AXUIElementCopyAttributeValue(w, kAXTitleAttribute as CFString, &t)
+            return (f, (t as? String) ?? "")
+        }
+    }
+
     // MARK: Raising
 
     /// Brings the focus window to the front. Best effort, never throws.
