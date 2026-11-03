@@ -107,8 +107,11 @@ Every push runs:
 
 See [docs/testing.md](docs/testing.md).
 
-Releases: run `scripts/set-version.sh X.Y.Z`, commit, and push tag `vX.Y.Z`.
-CI builds, verifies and publishes the DMG and extension zips.
+**Releases are automatic.** When every check passes on a push to `main`,
+CI tags the next version and publishes a GitHub release with the DMG,
+extension zips and checksums; the notes are the commit subjects since the
+last release. Versions are patch bumps unless a commit message says
+`[minor]` or `[major]`. Details: [docs/development.md](docs/development.md#releases).
 
 ## License
 

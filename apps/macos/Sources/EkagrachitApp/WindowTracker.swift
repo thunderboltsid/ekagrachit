@@ -72,7 +72,7 @@ final class WindowTracker {
     /// nudged the position to fit the screen).
     func locate(reported: Rect, allowFallback: Bool) -> UInt32? {
         let candidates = Self.list([.optionAll]).filter { $0.pid == browserPid && $0.layer == 0 }
-        if let w = WindowMatching.findFocusWindow(candidates: candidates, browserPid: browserPid, reported: reported) {
+        if let w = WindowMatching.findFocusWindow(candidates: candidates, browserPid: browserPid, reported: reported, current: focusWindow) {
             focusWindow = w.number
             return w.number
         }

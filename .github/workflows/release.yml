@@ -1,14 +1,31 @@
 name: Release
 
+# Every green push to main is released automatically: CI calls this workflow
+# (workflow_call) once all its jobs pass, with the commit to ship. The next
+# version is derived from the latest vX.Y.Z tag (patch by default; "[minor]" or
+# "[major]" in a commit message bumps more), stamped into the build, tagged on
+# that commit and published with the DMG, extension zips and checksums.
+#
+# Also:
+#   - pushing a vX.Y.Z tag by hand releases that tag;
+#   - "Run workflow" with a tag rebuilds an existing tag and re-attaches its files.
+# Nothing is ever committed back to the repository (versions live in tags), so
+# a release can't trigger another one.
+
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to release (CI passes the commit it just tested).
+        type: string
+        required: true
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build and attach to its release (e.g. v0.1.1). Empty: build only."
-        required: false
-        default: ""
+        description: "Existing tag to rebuild and attach to its release (e.g. v0.1.1)."
+        required: true
 
 permissions:
   contents: write
@@ -16,54 +33,82 @@ permissions:
 jobs:
   release:
     runs-on: macos-26
-    env:
-      # The tag being released: the pushed tag, or the one given to a manual run.
-      TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag }}
+    # One release at a time, in order: two pushes can't claim the same version.
+    concurrency:
+      group: release
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
-          # A manual run for a tag builds exactly that tag's source.
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
+          fetch-depth: 0 # tags and history: for the next version and the notes
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Version from the tag
-        if: env.TAG != ''
+      - name: Decide the version
+        env:
+          AUTO_REF: ${{ inputs.ref }}
+          MANUAL_TAG: ${{ inputs.tag }}
         run: |
-          # The tag is the source of truth: stamp its version into the manifest,
-          # app bundle and host so they can never disagree with the release.
+          git fetch --tags --force --quiet
+          if [[ -n "$AUTO_REF" ]]; then
+            already="$(git tag --points-at HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -1)"
+            if [[ -n "$already" ]]; then
+              echo "This commit is already released as $already; nothing to do."
+              echo "SKIP=1" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            TAG="$(scripts/release/next-version.sh)"
+          elif [[ -n "$MANUAL_TAG" ]]; then
+            TAG="$MANUAL_TAG"
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "tag $TAG is not vX.Y.Z"; exit 1; }
+          echo "Releasing $TAG from $(git rev-parse --short HEAD)"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          # The tag is the source of truth: stamp it into the manifest, app
+          # bundle and host so they can never disagree with the release.
           scripts/set-version.sh "${TAG#v}"
       - name: Test core
+        if: env.SKIP != '1'
         working-directory: apps/macos
         run: swift test
       - name: Build release artifacts
+        if: env.SKIP != '1'
         run: scripts/package-release.sh
       - name: Verify the DMG mounts and contains a valid app
+        if: env.SKIP != '1'
         run: |
           DMG=$(ls dist/*.dmg)
           MNT=$(hdiutil attach "$DMG" -nobrowse -readonly | tail -1 | awk -F'\t' '{print $NF}')
           codesign --verify --strict "$MNT/Ekagrachit.app"
           test -f "$MNT/Ekagrachit.app/Contents/Resources/AppIcon.icns"
           test -f "$MNT/Ekagrachit.app/Contents/Resources/ChromeExtension/manifest.json"
+          V=$(defaults read "$MNT/Ekagrachit.app/Contents/Info.plist" CFBundleShortVersionString)
+          [[ "v$V" == "$TAG" ]] || { echo "app says $V, release is $TAG"; exit 1; }
           hdiutil detach "$MNT"
       - uses: actions/upload-artifact@v4
+        if: env.SKIP != '1'
         with:
-          name: release
+          name: release-${{ env.TAG }}
           path: dist
       - name: Publish GitHub release
-        if: env.TAG != ''
+        if: env.SKIP != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          awk '/^## /{n++; next} n==1' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          # A release may already exist (created by hand in the GitHub UI): attach
-          # the artifacts to it instead of failing.
+          scripts/release/notes.sh "$TAG" HEAD > "$RUNNER_TEMP/notes.md"
+          # A release may already exist (created by hand, or a re-run): attach
+          # the files to it instead of failing.
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
             gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
           else
+            # Creates the tag on exactly the commit that was built and tested.
             gh release create "$TAG" dist/* \
+              --target "$(git rev-parse HEAD)" \
               --title "Ekagrachit ${TAG#v}" \
-              --notes-file "$RUNNER_TEMP/notes.md"
+              --notes-file "$RUNNER_TEMP/notes.md" \
+              --latest
           fi

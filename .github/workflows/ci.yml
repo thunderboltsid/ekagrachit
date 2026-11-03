@@ -124,3 +124,15 @@ jobs:
           name: ekagrachit-macos-unsigned
           path: dist
 
+
+  # Every green push to main ships: the next version is tagged and released
+  # (see release.yml). Pull requests and other branches only run the checks.
+  publish:
+    name: Release (automatic on main)
+    needs: [extension, core-linux, macos]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      ref: ${{ github.sha }}

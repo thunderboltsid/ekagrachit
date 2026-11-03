@@ -53,6 +53,34 @@ overrides: `EKAGRACHIT_SOCKET` (socket path), `EKAGRACHIT_SUPPORT_DIR` (state di
 - No runtime dependencies in the extension; dev dependencies: typescript, esbuild, playwright, @types.
 - Every new escape path gets an E2E test (extension) or a `FocusPolicy`/state-machine test (native).
 
+## Releases
+Every push to `main` whose checks all pass is released; there is no manual
+step.
+
+```text
+push to main → CI: extension · Swift on Linux · macOS app + desktop E2E
+             → publish (release.yml, called by CI)
+                 next tag   = latest vX.Y.Z + patch   ([minor] / [major] in a commit message bump more)
+                 build      = scripts/set-version.sh <tag> → scripts/package-release.sh
+                 verify     = DMG mounts, app signature, bundled extension, version matches the tag
+                 publish    = tag on the tested commit + GitHub release (DMG, extension zips, SHA256SUMS)
+                 notes      = commit subjects since the previous tag (scripts/release/notes.sh)
+```
+
+- **Versions live in tags.** Nothing is committed back (so a release can't
+  trigger another); the build stamps the tag's version into the manifest,
+  app bundle and host. The version in the source tree is only for local
+  builds.
+- **One at a time.** Releases share a concurrency group. If several pushes
+  land quickly, the newest one is released and those still waiting are
+  skipped; a commit that already has a version tag is never released twice.
+- **Write commit subjects for people**: they are the release notes.
+- **By hand, if ever needed:** pushing a `vX.Y.Z` tag releases it, and
+  running the *Release* workflow with an existing tag rebuilds it and
+  re-attaches its files.
+- Try it locally: `scripts/release/next-version.sh` and
+  `scripts/release/notes.sh "$(scripts/release/next-version.sh)"`.
+
 ## Diagrams
 Diagrams are written in Mermaid (`docs/diagrams/*.mmd`) and committed as rendered
 SVGs (`docs/images/diagrams/*.svg`), which the docs embed. After editing a

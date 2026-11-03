@@ -24,6 +24,18 @@ final class WindowMatchingTests: XCTestCase {
         XCTAssertEqual(WindowMatching.findFocusWindow(candidates: c, browserPid: chrome, reported: popupBounds)?.number, 40)
     }
 
+    /// Regression: Cmd+N opened a same-size window (newer number) just as the
+    /// focus window was re-reported; the tracked window must keep its place.
+    func testKeepsTheTrackedWindowOverANewerTwin() {
+        let c = [
+            WindowInfo(number: 96, pid: chrome, layer: 0, bounds: popupBounds, onScreen: true),
+            WindowInfo(number: 122, pid: chrome, layer: 0, bounds: popupBounds, onScreen: true),
+        ]
+        XCTAssertEqual(WindowMatching.findFocusWindow(candidates: c, browserPid: chrome, reported: popupBounds, current: 96)?.number, 96)
+        // The tracked window gone or no longer matching: newest match, as before.
+        XCTAssertEqual(WindowMatching.findFocusWindow(candidates: c, browserPid: chrome, reported: popupBounds, current: 7)?.number, 122)
+    }
+
     func testNoMatch() {
         let c = [WindowInfo(number: 12, pid: chrome, layer: 0, bounds: Rect(x: 0, y: 0, width: 10, height: 10), onScreen: true)]
         XCTAssertNil(WindowMatching.findFocusWindow(candidates: c, browserPid: chrome, reported: popupBounds))

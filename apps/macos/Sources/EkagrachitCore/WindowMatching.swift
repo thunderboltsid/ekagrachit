@@ -32,10 +32,15 @@ public enum WindowMatching {
     /// several equal candidates the highest window number wins: window numbers
     /// are allocated increasingly, so it is the most recently created window,
     /// i.e. the popup the extension just opened.
-    public static func findFocusWindow(candidates: [WindowInfo], browserPid: Int32, reported: Rect) -> WindowInfo? {
-        candidates
+    ///
+    /// The window already tracked wins while it still matches: Chrome can
+    /// briefly show another window of exactly the same size (Cmd+N copies the
+    /// current window's bounds), and "newest" would pick that short-lived one.
+    public static func findFocusWindow(candidates: [WindowInfo], browserPid: Int32, reported: Rect, current: UInt32? = nil) -> WindowInfo? {
+        let matching = candidates
             .filter { $0.pid == browserPid && $0.layer == 0 && $0.bounds.approximatelyEquals(reported, tolerance: boundsTolerance) }
-            .max { $0.number < $1.number }
+        if let current, let w = matching.first(where: { $0.number == current }) { return w }
+        return matching.max { $0.number < $1.number }
     }
 }
 
