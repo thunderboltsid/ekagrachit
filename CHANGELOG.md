@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.3
+
+- **Never freezes.** A busy or hung app (or a busy Chrome showing a heavy
+  Google Doc) could make Ekagrachit stop responding: it waited on
+  Accessibility calls into other apps with the system's ~6 s timeout. Calls
+  are now capped at 0.3 s, raising the focus window happens off the main
+  thread, and Chrome is never queried for window titles. A test freezes the
+  focused app outright; Ekagrachit keeps answering in ~30 ms.
+- **The Chrome toolbar button** opens the menu with the tab you clicked in,
+  and Escape closes it.
+- **◎ always opens on the first click** (after starting a session it could
+  take two).
+- A new session clears any leftover message; "1 minute", not "1 minutes";
+  less work while idle; a stalled browser connection is dropped after 2 s.
+
 ## 0.1.2
 
 - **Google Docs works.** Real Google document ids made Chrome reject the

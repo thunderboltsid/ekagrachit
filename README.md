@@ -65,7 +65,7 @@ the one-pointed mind, "a lamp sheltered from the wind." [What the name means →
 
 | Start | Saved for later | End early |
 |---|---|---|
-| ![Menu with the current tab prefilled](docs/images/menu.png) | ![Links saved during the session](docs/images/saved-for-later.png) | ![Hold to end session](docs/images/end-early.png) |
+| ![The menu, with the document you were working in already chosen](docs/images/menu.png) | ![Links saved during the session](docs/images/saved-for-later.png) | ![Hold to end session](docs/images/end-early.png) |
 
 ## Install
 
