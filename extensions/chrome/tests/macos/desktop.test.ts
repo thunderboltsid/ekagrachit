@@ -394,6 +394,11 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
   test('start from the native menu with the keyboard; saved-for-later feedback (product captures)', { timeout: 120_000 }, async () => {
     // A realistic document in the user's current tab; the menu offers it.
     const page = h.ctx.pages()[0]!;
+    // Size the user's window first: the focus window opens at the same size.
+    await inSW(h, async () => {
+      const w = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+      await chrome.windows.update(w.id!, { state: 'normal', left: 112, top: 70, width: 800, height: 620 });
+    });
     await page.goto(SHOWCASE);
     await page.bringToFront();
     await sleep(800);
@@ -405,8 +410,6 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     await waitActive('session started from the menu');
     const s = (await session(h))!;
     assert.equal(s.owner, 'native');
-    // A pleasant window size for the captures, centred.
-    await inSW(h, (id) => chrome.windows.update(id, { left: 112, top: 70, width: 800, height: 620 }).then(() => undefined), s.windowId!);
     await sleep(1500);
     assertHoleAround(await popupBounds(), 'showcase');
     shot('21-focus');

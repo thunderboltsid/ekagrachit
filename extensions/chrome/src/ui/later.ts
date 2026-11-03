@@ -23,7 +23,9 @@ function render(later: Later | null): void {
   $('empty').hidden = items.length > 0;
   $('actions').hidden = items.length === 0;
   $('intro').textContent = later && items.length
-    ? `While you focused on ${later.title}, you reached for ${items.length === 1 ? 'this link' : `these ${items.length} links`}. Nothing was lost — open them now, or whenever you're ready.`
+    ? (items.length === 1
+      ? `While you focused on ${later.title}, you reached for this link. Nothing was lost — open it now, or whenever you're ready.`
+      : `While you focused on ${later.title}, you reached for these ${items.length} links. Nothing was lost — open them now, or whenever you're ready.`)
     : '';
   for (const raw of items) {
     let url: URL;
