@@ -18,6 +18,32 @@ export const DOC_B = 'https://docs.google.com/document/d/DOC_B_0987654321/edit';
 export const JIRA = 'https://acme.atlassian.net/browse/PROJ-1';
 export const SLACK = 'https://app.slack.com/client/T000/C000';
 
+/** A realistic document for product screenshots (neutral styling). */
+export const SHOWCASE = 'https://docs.google.com/document/d/SHOWCASE/edit';
+const SHOWCASE_DOC = `<!doctype html><html><head><meta charset="utf-8"><title>Session sync v2 — design review</title>
+<style>
+body{margin:0;background:#f3f3f6;font:15px/1.6 -apple-system,system-ui,sans-serif;color:#1f2330}
+.bar{position:sticky;top:0;background:#fff;border-bottom:1px solid #e3e3ea;padding:10px 28px;display:flex;gap:14px;align-items:center;font-size:13px;color:#555}
+.bar b{color:#1f2330;font-size:15px}.pill{background:#eef0ff;color:#3a3f9e;border-radius:99px;padding:2px 10px}
+.page{max-width:720px;margin:24px auto;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:48px 64px;border-radius:4px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:28px 0 6px}.meta{color:#777;font-size:13px;margin-bottom:22px}
+a{color:#2b5bd7}.note{background:#fff8e1;border-left:3px solid #f2a33a;padding:8px 12px;margin:14px 0;font-size:14px}
+code{background:#f1f1f5;padding:1px 5px;border-radius:4px;font-size:13px}
+</style></head><body>
+<div class="bar"><b>Session sync v2 — design review</b><span class="pill">Draft</span><span>Last edit 3 minutes ago</span></div>
+<div class="page">
+<h1>Session sync v2</h1><div class="meta">Author: Priya R. · Reviewers: you, Marco · Status: ready for review</div>
+<h2>Problem</h2>
+<p>Clients reconnecting after a network partition replay their full session log, which costs 2–4 s on large workspaces and occasionally reorders edits. See <a id="jira" href="https://acme.atlassian.net/browse/PROJ-1423">PROJ-1423</a> for the incident timeline.</p>
+<h2>Proposal</h2>
+<p>Replace replay with an authoritative snapshot pushed by the server (<code>sync{epoch, seq, state}</code>). Clients reconcile to the snapshot; stale messages are rejected by <code>(epoch, seq)</code>. A prototype lives in <a id="pr" href="https://github.com/acme/workspace/pull/882" target="_blank">PR #882</a>.</p>
+<div class="note">Open question: do we keep the replay path for clients older than 4.2, or force an upgrade?</div>
+<h2>Rollout</h2>
+<p>Behind a flag for internal workspaces first, then 10% of tenants with automatic rollback on error-rate regression. Dashboards are linked from the <a href="https://acme.atlassian.net/wiki/sync-runbook" target="_blank">runbook</a>.</p>
+<h2>Alternatives considered</h2>
+<p>Vector clocks per document (rejected: unbounded metadata growth) and CRDT migration (deferred to H2).</p>
+</div></body></html>`;
+
 export interface Served {
   host: string;
   path: string;
@@ -42,6 +68,10 @@ export class TestServer {
       if (path.startsWith('/favicon')) {
         res.statusCode = 404;
         res.end();
+        return;
+      }
+      if (host === 'docs.google.com' && path.startsWith('/document/d/SHOWCASE')) {
+        res.end(SHOWCASE_DOC);
         return;
       }
       if (host === 'docs.google.com' && path.startsWith('/document/d/')) {
