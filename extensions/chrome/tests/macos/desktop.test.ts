@@ -470,11 +470,20 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
   const appWindow = (owner: string) => windows().filter((w) => w.owner === owner && w.layer === 0 && w.w > 200)[0];
 
   test('native app: ⌃⌥⌘F focuses the TextEdit window in front of you', { timeout: 120_000 }, async () => {
-    writeFileSync('/tmp/ek-notes.txt', 'Quarterly plan\n\nDraft the narrative before the numbers.\n');
-    execFileSync('open', ['-a', 'TextEdit', '/tmp/ek-notes.txt']);
+    writeFileSync('/tmp/Quarterly plan.txt', 'Quarterly plan\n\nDraft the narrative before the numbers.\n');
+    execFileSync('open', ['-a', 'TextEdit', '/tmp/Quarterly plan.txt']);
     await waitFor(async () => appWindow('TextEdit'), (w) => !!w, 10_000, 'TextEdit window');
     probe('activate', 'com.apple.TextEdit');
     await sleep(1000);
+    // Product capture: the menu opened over a document preselects its window.
+    const item = probe<{ x: number; y: number; w: number; h: number }>('statusitem', String(appPid()));
+    probe('click', String(item.x + item.w / 2), String(item.y + item.h / 2));
+    await sleep(1500);
+    shot('29-menu-window');
+    probe('key', '53'); // Escape closes the menu
+    await sleep(500);
+    probe('activate', 'com.apple.TextEdit');
+    await sleep(800);
     const original = appWindow('TextEdit')!;
     probe('key', '3', 'ctrl,opt,cmd'); // ⌃⌥⌘F
     try {
