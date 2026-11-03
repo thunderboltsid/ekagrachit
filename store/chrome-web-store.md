@@ -14,7 +14,7 @@ sideloaded copies.
 **Name:** Ekagrachit — one-pointed focus
 
 **Summary (132 chars max):**
-Focus on one document. Ekagrachit opens it in its own window and keeps every other tab, site and app out of reach until time's up.
+A deep-focus tool for people whose distractions are productive apps. One document, one window, nothing else until time's up.
 
 **Category:** Productivity → Tools
 

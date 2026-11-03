@@ -7,8 +7,10 @@
 <a href="docs/installation.md">Install guide</a> ·
 <a href="PRIVACY.md">Privacy</a></p>
 
-Ekagrachit (एकाग्रचित्त, *one-pointed attention*) is a deep-focus tool for macOS
-and Google Chrome. You give it the one thing you want to work on — a Google
+**A deep-focus tool for people whose distractions are productive apps.**
+
+Ekagrachit (एकाग्रचित्त, *one-pointed attention*) runs on macOS with Google
+Chrome. You give it the one thing you want to work on — a Google
 Doc, a GitHub pull request, a Jira issue, any page — and a duration. It opens
 that resource in its own window, signed in as usual, and keeps every other
 tab, site and app out of reach until the time is up.
