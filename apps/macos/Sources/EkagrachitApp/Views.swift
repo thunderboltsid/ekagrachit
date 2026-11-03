@@ -41,17 +41,8 @@ struct MenuContentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(spacing: 3) {
-                Text("EKAGRACHIT")
-                    .font(.system(size: 12, weight: .semibold))
-                    .tracking(3)
-                if coordinator.phase == .idle, let summary = coordinator.ledgerSummary {
-                    Text(summary).font(.caption).foregroundStyle(.secondary)
-                        .accessibilityLabel(summary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
+        VStack(alignment: .leading, spacing: 16) {
+            header
             switch coordinator.phase {
             case .idle where coordinator.waitingForChrome:
                 HStack(spacing: 8) {
@@ -63,16 +54,21 @@ struct MenuContentView: View {
             case .active, .degraded, .ending: activeView
             }
             if let m = coordinator.message {
-                Text(m).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                // A sentence, not an alarm: say what happened and what to do.
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
+                    Text(m).fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.callout)
             }
             if needsAttention {
                 Divider()
                 statusRows
             }
-            Divider()
-            footer
         }
-        .padding(16)
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .padding(.bottom, 18)
         .frame(width: 340)
         .onAppear {
             coordinator.refreshPermissions()
@@ -101,8 +97,8 @@ struct MenuContentView: View {
 
     private var idleView: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("What are you focusing on?").font(.callout).foregroundStyle(.secondary)
-            TextField("Paste a link — a doc, a PR, a ticket…", text: $target)
+            SectionLabel("Focus on")
+            TextField("A link: a doc, a pull request, a ticket", text: $target)
                 .textFieldStyle(.roundedBorder)
                 .focused($urlFocused)
                 .onSubmit(start)
@@ -117,7 +113,8 @@ struct MenuContentView: View {
                 .font(.caption)
             }
             if !coordinator.windowChoices.isEmpty {
-                Text("Or a window").font(.callout).foregroundStyle(.secondary)
+                SectionLabel("Or a window", trailing: HotKey.quickStartDisplay)
+                    .help("\(HotKey.quickStartDisplay) focuses the window in front of you, from anywhere")
                 VStack(spacing: 2) {
                     ForEach(coordinator.windowChoices.prefix(5), id: \.number) { w in
                         WindowRow(window: w, selected: selectedWindow?.number == w.number) {
@@ -128,10 +125,10 @@ struct MenuContentView: View {
                     }
                 }
             }
-            Text("Duration").font(.callout).foregroundStyle(.secondary)
-            Picker("Duration", selection: $choice) {
-                ForEach(presets, id: \.self) { Text("\($0)m").tag(DurationChoice.preset($0)) }
-                Text("Custom").tag(DurationChoice.custom)
+            SectionLabel("Minutes")
+            Picker("Minutes", selection: $choice) {
+                ForEach(presets, id: \.self) { Text("\($0)").monospacedDigit().tag(DurationChoice.preset($0)) }
+                Text("Other").tag(DurationChoice.custom)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -146,14 +143,12 @@ struct MenuContentView: View {
                 }
             }
             Button(action: start) {
-                Text("Start Focus · \(minutes) min").frame(maxWidth: .infinity)
+                Text("Start · \(minutes) min").fontWeight(.medium).monospacedDigit().frame(maxWidth: .infinity)
             }
             .buttonStyle(.glassProminent)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
             .disabled(target.trimmingCharacters(in: .whitespaces).isEmpty && selectedWindow == nil)
-            Text("Tip: \(HotKey.quickStartDisplay) focuses the window in front of you.")
-                .font(.caption).foregroundStyle(.tertiary)
         }
     }
 
@@ -169,17 +164,18 @@ struct MenuContentView: View {
 
     private var activeView: some View {
         VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Focusing on")
             Text(coordinator.machine.session?.target ?? "")
-                .font(.callout).lineLimit(2).truncationMode(.middle).foregroundStyle(.secondary)
+                .lineLimit(2).truncationMode(.middle)
             Text(HUDPanel.format(coordinator.remaining))
-                .font(.system(size: 34, weight: .light)).monospacedDigit()
+                .font(.system(size: 44, weight: .ultraLight)).monospacedDigit()
+                .padding(.vertical, 2)
             if coordinator.phase == .degraded {
                 Label(degradedText, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
             }
-            Button("End Session…") { coordinator.requestEnd() }
+            Button("End early…") { coordinator.requestEnd() }
                 .buttonStyle(.glass)
-            Text("Emergency exit: \(HotKey.emergencyDisplay), then hold to confirm.")
-                .font(.caption).foregroundStyle(.secondary)
+                .help("Or press \(HotKey.emergencyDisplay) anywhere, then hold")
         }
     }
 
@@ -228,17 +224,38 @@ struct MenuContentView: View {
             .foregroundStyle(ok ? Color.secondary : Color.orange)
     }
 
-    private var footer: some View {
-        HStack {
-            Button("About") { NotificationCenter.default.post(name: AppDelegate.showAboutNotification, object: nil) }
-            Button("Settings…") { NotificationCenter.default.post(name: AppDelegate.showSettingsNotification, object: nil) }
-            Spacer()
-            Button("Quit") { NSApp.terminate(nil) }
-                .disabled(coordinator.isSessionRunning)
-                .help(coordinator.isSessionRunning ? "End the session first" : "Quit Ekagrachit")
+    /// Wordmark left, one gear right: Settings, About and Quit live behind it.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center) {
+                Text("EKAGRACHIT")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(3.2)
+                Spacer()
+                Menu {
+                    Button("Settings…") { NotificationCenter.default.post(name: AppDelegate.showSettingsNotification, object: nil) }
+                        .keyboardShortcut(",")
+                    Button("About Ekagrachit") { NotificationCenter.default.post(name: AppDelegate.showAboutNotification, object: nil) }
+                    Divider()
+                    Button("Quit Ekagrachit") { NSApp.terminate(nil) }
+                        .keyboardShortcut("q")
+                        .disabled(coordinator.isSessionRunning)
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Settings")
+                .accessibilityLabel("Settings")
+            }
+            if coordinator.phase == .idle, let summary = coordinator.ledgerSummary {
+                Text(summary).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+            }
         }
-        .buttonStyle(.borderless)
-        .font(.callout)
     }
 
     private func start() {
@@ -254,6 +271,31 @@ struct MenuContentView: View {
             target = ""
             selectedWindow = nil
         }
+    }
+}
+
+/// A small, quiet section label (Bauhaus: hierarchy by size and weight, not colour).
+struct SectionLabel: View {
+    let text: String
+    var trailing: String?
+
+    init(_ text: String, trailing: String? = nil) {
+        self.text = text
+        self.trailing = trailing
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(text.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(1.1)
+                .foregroundStyle(.secondary)
+            if let trailing {
+                Spacer()
+                Text(trailing).font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
