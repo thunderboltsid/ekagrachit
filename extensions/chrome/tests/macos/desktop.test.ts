@@ -109,6 +109,13 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const region = { x: hole.x + 40, y: hole.y + 120, w: Math.max(20, hole.w - 80), h: Math.max(20, Math.min(200, hole.h - 160)) };
     const { brightness } = probe<{ brightness: number }>('brightness', file, ...[region.x, region.y, region.w, region.h].map(String));
     assert.ok(brightness > 0.9, `focus window content not visible in screenshot (brightness ${brightness.toFixed(2)} in ${JSON.stringify(region)})`);
+    // Rounded corners: the slivers between the window's rounded corner and the
+    // rectangular hole must not show what's behind (black desktop in CI).
+    const v2 = screen.visible;
+    if (!fullscreen && popup.x >= v2.x && popup.y + popup.h <= v2.y + v2.h) {
+      const c = probe<{ brightness: number }>('brightness', file, String(popup.x), String(popup.y + popup.h - 3), '3', '3');
+      assert.ok(c.brightness > 0.3, `bottom-left corner sliver shows what is behind the focus window (brightness ${c.brightness.toFixed(2)})`);
+    }
     // …and the area outside it must be covered (the overlay is a uniform tint, never the white page).
     if (hole.y > screen.y + 60 || hole.x + hole.w < screen.x + screen.w - 60) {
       const outside = hole.y > screen.y + 60 ? { x: screen.x + 10, y: screen.y + 30, w: screen.w - 20, h: 20 } : { x: hole.x + hole.w + 10, y: hole.y + 100, w: 30, h: 100 };
@@ -180,10 +187,12 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     execFileSync('open', ['/System/Library/Desktop Pictures']);
     await sleep(2500);
     shot('00a-desktop-before');
-    // Click Ekagrachit's status item (a small window of ours in the menu-bar strip).
-    const item = appWindows().find((w) => w.layer === 25 && w.y < 30 && w.w < 200);
+    // Click Ekagrachit's menu-bar item (found through Accessibility; on macOS 26
+    // menu-bar extras are not windows of the owning app).
+    const item = probe<{ x: number; y: number; w: number; h: number; error?: string }>('statusitem', String(appPid()));
     console.log('status item:', JSON.stringify(item));
-    if (item) {
+    assert.ok(!item.error && item.w > 0, 'menu-bar item found');
+    {
       probe('click', String(item.x + item.w / 2), String(item.y + item.h / 2));
       await sleep(1500);
       shot('00b-menu-idle');

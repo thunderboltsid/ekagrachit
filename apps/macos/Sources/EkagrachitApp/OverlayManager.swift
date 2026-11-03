@@ -16,7 +16,7 @@ enum OverlayStyle: String, CaseIterable, Identifiable {
 }
 
 /// A borderless, non-activating panel that blocks clicks and hides what is behind it.
-final class OverlayPanel: NSPanel {
+class OverlayPanel: NSPanel {
     var onClick: (() -> Void)?
 
     init(style: OverlayStyle) {
@@ -90,11 +90,18 @@ final class OverlayManager {
         didSet {
             guard style != oldValue else { return }
             pool.forEach { $0.apply(style: style) }
+            fillets.values.forEach { $0.orderOut(nil) }
+            fillets = [:]
         }
     }
     var onClick: (() -> Void)?
 
     let hud = HUDPanel()
+    private var fillets: [Corner: CornerPanel] = [:]
+    /// Window corner radius on macOS 26 (slightly generous: covering a few
+    /// pixels of the focus window's own corner is harmless, exposing what is
+    /// behind it is not).
+    static let cornerRadius: CGFloat = 18
 
     /// - Parameters:
     ///   - hole: focus window rect in global top-left coordinates, or nil to cover everything
@@ -111,6 +118,7 @@ final class OverlayManager {
         isShown = false
         isSuspended = false
         pool.forEach { $0.orderOut(nil) }
+        fillets.values.forEach { $0.orderOut(nil) }
         lastLayout = []
         hud.orderOut(nil)
     }
@@ -121,6 +129,7 @@ final class OverlayManager {
         isSuspended = suspended
         if suspended {
             pool.forEach { $0.orderOut(nil) }
+            fillets.values.forEach { $0.orderOut(nil) }
             hud.orderOut(nil)
             lastLayout = []
         } else {
@@ -154,6 +163,7 @@ final class OverlayManager {
             let r = OverlayGeometry.flip(p.integral, primaryHeight: primaryHeight)
             rects.append(CGRect(x: r.x, y: r.y, width: r.width, height: r.height))
         }
+        layoutFillets(window: holeCocoa, screens: screens)
         if rects == lastLayout { return }
         lastLayout = rects
         while pool.count < rects.count {
@@ -169,6 +179,78 @@ final class OverlayManager {
                 panel.orderOut(nil)
             }
         }
+    }
+}
+
+extension OverlayManager {
+    /// Covers the four slivers between the focus window's rounded corners and
+    /// the rectangular hole, where whatever is behind the window would show.
+    fileprivate func layoutFillets(window: Rect?, screens: [NSScreen]) {
+        let r = OverlayManager.cornerRadius
+        let fullScreen = screens.contains { NSRect(x: window?.x ?? 0, y: window?.y ?? 0, width: window?.width ?? 0, height: window?.height ?? 0).contains($0.frame) }
+        guard let w = window, !w.isEmpty, !fullScreen else {
+            fillets.values.forEach { $0.orderOut(nil) }
+            return
+        }
+        for corner in Corner.allCases {
+            let origin: NSPoint
+            switch corner {
+            case .bottomLeft: origin = NSPoint(x: w.minX, y: w.minY)
+            case .bottomRight: origin = NSPoint(x: w.maxX - r, y: w.minY)
+            case .topLeft: origin = NSPoint(x: w.minX, y: w.maxY - r)
+            case .topRight: origin = NSPoint(x: w.maxX - r, y: w.maxY - r)
+            }
+            let frame = NSRect(origin: origin, size: NSSize(width: r, height: r))
+            // Only where the window's corner is actually exposed: inside some
+            // screen's visible frame (elsewhere the cover panels already cover it).
+            let exposed = screens.contains { $0.visibleFrame.contains(frame) }
+            let panel = fillets[corner] ?? {
+                let p = CornerPanel(corner: corner, radius: r, style: style)
+                p.onClick = { [weak self] in self?.onClick?() }
+                fillets[corner] = p
+                return p
+            }()
+            if exposed {
+                if panel.frame != frame { panel.setFrame(frame, display: true) }
+                if !panel.isVisible { panel.orderFrontRegardless() }
+            } else {
+                panel.orderOut(nil)
+            }
+        }
+    }
+}
+
+enum Corner: CaseIterable { case topLeft, topRight, bottomLeft, bottomRight }
+
+/// An r×r overlay square with a transparent quarter disc toward the window:
+/// draws the overlay only outside the window's rounded corner. Fully
+/// transparent pixels let clicks through to the window.
+final class CornerPanel: OverlayPanel {
+    init(corner: Corner, radius: CGFloat, style: OverlayStyle) {
+        super.init(style: style)
+        let mask = NSImage(size: NSSize(width: radius, height: radius), flipped: false) { rect in
+            // Disc centre: the inner corner of the square (toward the window's interior).
+            let c: NSPoint
+            switch corner {
+            case .bottomLeft: c = NSPoint(x: rect.maxX, y: rect.maxY)
+            case .bottomRight: c = NSPoint(x: rect.minX, y: rect.maxY)
+            case .topLeft: c = NSPoint(x: rect.maxX, y: rect.minY)
+            case .topRight: c = NSPoint(x: rect.minX, y: rect.minY)
+            }
+            let path = NSBezierPath(rect: rect)
+            path.appendOval(in: NSRect(x: c.x - radius, y: c.y - radius, width: 2 * radius, height: 2 * radius))
+            path.windingRule = .evenOdd
+            NSColor.black.setFill()
+            path.fill()
+            return true
+        }
+        let blur = NSVisualEffectView()
+        blur.material = .fullScreenUI
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        blur.maskImage = mask
+        if style == .opaque { blur.material = .windowBackground }
+        contentView = blur
     }
 }
 
@@ -198,7 +280,10 @@ final class HUDPanel: NSPanel {
         detail.lineBreakMode = .byTruncatingTail
         endButton.bezelStyle = .glass
         endButton.controlSize = .mini
-        endButton.font = .systemFont(ofSize: 11, weight: .medium)
+        // Panels of an inactive app render button titles dimmed; force a normal label colour.
+        endButton.attributedTitle = NSAttributedString(string: "End…", attributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.labelColor,
+        ])
         endButton.target = self
         endButton.action = #selector(endPressed)
         endButton.setAccessibilityLabel("End focus session early")

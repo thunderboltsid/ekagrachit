@@ -74,6 +74,24 @@ case "brightness":
     emit(["brightness": n > 0 ? sum / n : -1, "samples": n])
 case "frontmost":
     emit(frontmost())
+case "statusitem":
+    // statusitem PID -> frame of that app's menu-bar extra (via Accessibility)
+    let pid = pid_t(Int(Array(args)[1])!)
+    let app = AXUIElementCreateApplication(pid)
+    var bar: CFTypeRef?
+    var kids: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(app, "AXExtrasMenuBar" as CFString, &bar) == .success, let bar,
+          AXUIElementCopyAttributeValue(bar as! AXUIElement, kAXChildrenAttribute as CFString, &kids) == .success,
+          let item = (kids as? [AXUIElement])?.first else { emit(["error": "no status item"]); exit(0) }
+    var pos: CFTypeRef?
+    var size: CFTypeRef?
+    AXUIElementCopyAttributeValue(item, kAXPositionAttribute as CFString, &pos)
+    AXUIElementCopyAttributeValue(item, kAXSizeAttribute as CFString, &size)
+    var p = CGPoint.zero
+    var z = CGSize.zero
+    if let pos { AXValueGetValue(pos as! AXValue, .cgPoint, &p) }
+    if let size { AXValueGetValue(size as! AXValue, .cgSize, &z) }
+    emit(["x": p.x, "y": p.y, "w": z.width, "h": z.height])
 case "click":
     let a = Array(args)
     let p = CGPoint(x: Double(a[1])!, y: Double(a[2])!)
