@@ -10,6 +10,7 @@ final class AppSettings: ObservableObject {
     @Published var endShortcut: String { didSet { d.set(endShortcut, forKey: "endShortcut") } }
     @Published var overlayStyle: OverlayStyle { didSet { d.set(overlayStyle.rawValue, forKey: "overlayStyle") } }
     @Published var defaultMinutes: Int { didSet { d.set(defaultMinutes, forKey: "defaultMinutes") } }
+    @Published var playEndSound: Bool { didSet { d.set(playEndSound, forKey: "playEndSound") } }
 
     init() {
         startShortcut = d.string(forKey: "startShortcut") ?? ""
@@ -17,6 +18,7 @@ final class AppSettings: ObservableObject {
         overlayStyle = OverlayStyle(rawValue: d.string(forKey: "overlayStyle") ?? "") ?? .frosted
         let m = d.integer(forKey: "defaultMinutes")
         defaultMinutes = m > 0 ? m : 25
+        playEndSound = d.object(forKey: "playEndSound") as? Bool ?? true
     }
 
     var launchAtLogin: Bool {
@@ -333,7 +335,10 @@ final class FocusSessionCoordinator: ObservableObject {
             runShortcut(settings.startShortcut)
         case let .sessionEnded(reason):
             runShortcut(settings.endShortcut)
-            if reason == .expired { toast.show("Focus session complete") }
+            if reason == .expired {
+                toast.show("Focus session complete")
+                if settings.playEndSound { NSSound(named: "Glass")?.play() }
+            }
             switch reason {
             case .expired, .userEnded: message = nil
             case .startFailed: message = message ?? "The focus window could not be set up. Is the Chrome extension enabled?"

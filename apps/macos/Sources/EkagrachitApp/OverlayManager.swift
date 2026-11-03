@@ -255,11 +255,60 @@ final class CornerPanel: OverlayPanel {
 }
 
 /// Small, unobtrusive status pill: remaining time, state, and "End…".
+/// A small capsule button drawn by hand: system buttons in a non-activating
+/// panel of a background app always render in their dimmed "inactive" style.
+final class PillButton: NSView {
+    private let title: String
+    var onPress: (() -> Void)?
+    private var pressed = false { didSet { needsDisplay = true } }
+
+    init(title: String) {
+        self.title = title
+        super.init(frame: .zero)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(title)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    private var attrs: [NSAttributedString.Key: Any] {
+        [.font: NSFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.labelColor]
+    }
+
+    override var intrinsicContentSize: NSSize {
+        let t = (title as NSString).size(withAttributes: attrs)
+        return NSSize(width: ceil(t.width) + 18, height: 18)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let r = bounds.insetBy(dx: 0.5, dy: 0.5)
+        let path = NSBezierPath(roundedRect: r, xRadius: r.height / 2, yRadius: r.height / 2)
+        NSColor.labelColor.withAlphaComponent(pressed ? 0.22 : 0.1).setFill()
+        path.fill()
+        let t = (title as NSString).size(withAttributes: attrs)
+        (title as NSString).draw(at: NSPoint(x: r.midX - t.width / 2, y: r.midY - t.height / 2), withAttributes: attrs)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { pressed = true }
+    override func mouseUp(with event: NSEvent) {
+        let inside = bounds.contains(convert(event.locationInWindow, from: nil))
+        pressed = false
+        if inside { onPress?() }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        onPress?()
+        return true
+    }
+}
+
 final class HUDPanel: NSPanel {
     static let height: CGFloat = 22
     private let label = NSTextField(labelWithString: "")
     private let detail = NSTextField(labelWithString: "")
-    private let endButton = NSButton(title: "End…", target: nil, action: nil)
+    private let endButton = PillButton(title: "End…")
     var onEnd: (() -> Void)?
 
     init() {
@@ -278,14 +327,7 @@ final class HUDPanel: NSPanel {
         detail.font = .systemFont(ofSize: 11)
         detail.textColor = .secondaryLabelColor
         detail.lineBreakMode = .byTruncatingTail
-        endButton.bezelStyle = .glass
-        endButton.controlSize = .mini
-        // Panels of an inactive app render button titles dimmed; force a normal label colour.
-        endButton.attributedTitle = NSAttributedString(string: "End…", attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.labelColor,
-        ])
-        endButton.target = self
-        endButton.action = #selector(endPressed)
+        endButton.onPress = { [weak self] in self?.onEnd?() }
         endButton.setAccessibilityLabel("End focus session early")
         endButton.toolTip = "End early (\(HotKey.emergencyDisplay))"
 
@@ -302,9 +344,6 @@ final class HUDPanel: NSPanel {
 
     override var canBecomeKey: Bool { false }
 
-    @objc private func endPressed() {
-        onEnd?()
-    }
 
     func update(remaining: TimeInterval, detailText: String?) {
         label.stringValue = Self.format(remaining)

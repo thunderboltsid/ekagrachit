@@ -11,13 +11,15 @@ final class ConfirmEndPanel: NSPanel {
     var onCancel: (() -> Void)?
 
     init() {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 168), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 168), styleMask: [.titled, .nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
         level = confirmLevel
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         isMovableByWindowBackground = true
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
         becomesKeyOnlyIfNeeded = false
+        titleVisibility = .hidden
+        titlebarAppearsTransparent = true
 
         let title = NSTextField(labelWithString: "End this focus session early?")
         title.font = .systemFont(ofSize: 15, weight: .semibold)
@@ -38,7 +40,7 @@ final class ConfirmEndPanel: NSPanel {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 20, left: 22, bottom: 20, right: 22)
+        stack.edgeInsets = NSEdgeInsets(top: 26, left: 22, bottom: 20, right: 22)
         stack.translatesAutoresizingMaskIntoConstraints = false
         let root = NSView()
         root.addSubview(stack)
@@ -51,13 +53,7 @@ final class ConfirmEndPanel: NSPanel {
             hold.widthAnchor.constraint(equalToConstant: 170),
             hold.heightAnchor.constraint(equalToConstant: 28),
         ])
-        let glass = NSGlassEffectView()
-        glass.cornerRadius = 18
-        glass.contentView = root
-        contentView = glass
-        isOpaque = false
-        backgroundColor = .clear
-        hasShadow = false // the glass draws its own edge; a window shadow shows square corners
+        contentView = root
         setContentSize(root.fittingSize)
     }
 

@@ -33,6 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: FocusSessionCoordinator.showSetupNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.showSetup() }
         }
+        if ProcessInfo.processInfo.environment["EKAGRACHIT_OPEN_SETTINGS"] == "1" { // screenshot hook
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                NSApp.activate()
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
+        }
         // Give Chrome's extension a moment to connect, then show setup if
         // anything is missing (or on first launch, to point at the menu bar).
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
