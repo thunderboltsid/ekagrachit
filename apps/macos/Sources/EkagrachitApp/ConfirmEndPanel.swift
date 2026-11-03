@@ -30,6 +30,9 @@ final class ConfirmEndPanel: NSPanel {
         let verse = NSTextField(wrappingLabelWithString: "“Wherever the restless mind wanders, draw it back from there, and let it rest within.”\n— Bhagavad Gītā 6.26")
         verse.font = NSFontManager.shared.convert(.systemFont(ofSize: 12), toHaveTrait: .italicFontMask)
         verse.textColor = .secondaryLabelColor
+        // Wrapping labels size to their longest line unless told the width.
+        body.preferredMaxLayoutWidth = 320
+        verse.preferredMaxLayoutWidth = 320
         let cancel = NSButton(title: "Keep focusing", target: nil, action: nil)
         cancel.bezelStyle = .glass
         cancel.keyEquivalent = "\u{1b}"
