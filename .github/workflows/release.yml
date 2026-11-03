@@ -2,8 +2,8 @@ name: Release
 
 # Every green push to main is released automatically: CI calls this workflow
 # (workflow_call) once all its jobs pass, with the commit to ship. The next
-# version is derived from the latest vX.Y.Z tag (patch by default; "[minor]" or
-# "[major]" in a commit message bumps more), stamped into the build, tagged on
+# version is derived from the latest vX.Y.Z tag (patch by default; a commit
+# trailer "Release: minor" or "Release: major" bumps more), stamped into the build, tagged on
 # that commit and published with the DMG, extension zips and checksums.
 #
 # Also:

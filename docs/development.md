@@ -60,7 +60,7 @@ step.
 ```text
 push to main → CI: extension · Swift on Linux · macOS app + desktop E2E
              → publish (release.yml, called by CI)
-                 next tag   = latest vX.Y.Z + patch   ([minor] / [major] in a commit message bump more)
+                 next tag   = latest vX.Y.Z + patch   (trailer "Release: minor" / "Release: major" bumps more)
                  build      = scripts/set-version.sh <tag> → scripts/package-release.sh
                  verify     = DMG mounts, app signature, bundled extension, version matches the tag
                  publish    = tag on the tested commit + GitHub release (DMG, extension zips, SHA256SUMS)
@@ -74,6 +74,10 @@ push to main → CI: extension · Swift on Linux · macOS app + desktop E2E
 - **One at a time.** Releases share a concurrency group. If several pushes
   land quickly, the newest one is released and those still waiting are
   skipped; a commit that already has a version tag is never released twice.
+- **Bigger bumps are explicit**: add a trailer line `Release: minor` (or
+  `Release: major`) at the end of the commit message, next to
+  `Co-Authored-By:`. Only a real trailer counts; mentioning the words in the
+  message body does not (that once released 1.0.0 by accident).
 - **Write commit subjects for people**: they are the release notes.
 - **By hand, if ever needed:** pushing a `vX.Y.Z` tag releases it, and
   running the *Release* workflow with an existing tag rebuilds it and

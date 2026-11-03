@@ -110,8 +110,8 @@ See [docs/testing.md](docs/testing.md).
 **Releases are automatic.** When every check passes on a push to `main`,
 CI tags the next version and publishes a GitHub release with the DMG,
 extension zips and checksums; the notes are the commit subjects since the
-last release. Versions are patch bumps unless a commit message says
-`[minor]` or `[major]`. Details: [docs/development.md](docs/development.md#releases).
+last release. Versions are patch bumps unless a commit carries the trailer
+`Release: minor` or `Release: major`. Details: [docs/development.md](docs/development.md#releases).
 
 ## License
 
