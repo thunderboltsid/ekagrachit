@@ -92,7 +92,9 @@ export class FocusController {
 
   constructor() {
     this.bridge = new NativeBridge(
-      (msg) => void this.serial(() => this.onNative(msg)),
+      // Replies that only resolve a waiting request must not queue behind
+      // session work (e.g. the window being created for that very start).
+      (msg) => (msg.type === 'start_result' ? this.resolveStart(msg) : void this.serial(() => this.onNative(msg))),
       (status) => void this.serial(() => this.onBridgeStatus(status)),
     );
     this.ready = this.serial(() => this.init());
@@ -212,7 +214,7 @@ export class FocusController {
         this.pendingStarts.set(cid, resolve);
         setTimeout(() => {
           if (this.pendingStarts.delete(cid)) resolve({ ok: false, error: 'Ekagrachit app did not respond.' });
-        }, 15_000);
+        }, 20_000);
       });
       this.bridge.send({ v: 1, type: 'start_request', cid, target: parsed.url, durationMinutes: duration });
       return result;
@@ -410,14 +412,9 @@ export class FocusController {
       case 'error':
         this.lastError = `App: ${msg.message || msg.code}`;
         return;
-      case 'start_result': {
-        const resolve = this.pendingStarts.get(msg.cid);
-        if (resolve) {
-          this.pendingStarts.delete(msg.cid);
-          resolve(msg.error === undefined ? { ok: msg.ok } : { ok: msg.ok, error: msg.error });
-        }
+      case 'start_result':
+        this.resolveStart(msg);
         return;
-      }
       case 'focus':
         if (this.rec?.sid === msg.sid) await this.refocus(true);
         return;
@@ -437,6 +434,13 @@ export class FocusController {
         await this.applySync(msg.session);
         return;
     }
+  }
+
+  private resolveStart(msg: Extract<Inbound, { type: 'start_result' }>): void {
+    const resolve = this.pendingStarts.get(msg.cid);
+    if (!resolve) return;
+    this.pendingStarts.delete(msg.cid);
+    resolve(msg.error === undefined ? { ok: msg.ok } : { ok: msg.ok, error: msg.error });
   }
 
   private async applySync(desired: DesiredSession | null): Promise<void> {

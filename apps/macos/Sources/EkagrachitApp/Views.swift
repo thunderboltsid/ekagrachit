@@ -179,8 +179,7 @@ struct MenuContentView: View {
 
     private var footer: some View {
         HStack {
-            SettingsLink { Text("Settings…") }
-                .simultaneousGesture(TapGesture().onEnded { NSApp.activate() })
+            Button("Settings…") { NotificationCenter.default.post(name: AppDelegate.showSettingsNotification, object: nil) }
             Spacer()
             Button("Quit") { NSApp.terminate(nil) }
                 .disabled(coordinator.isSessionRunning)
@@ -259,6 +258,7 @@ struct SetupView: View {
                 Text("Set up Ekagrachit").font(.title2.weight(.semibold))
                 Text("Two things are needed before your first focus session.")
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
             step(done: coordinator.extensionConnected,
