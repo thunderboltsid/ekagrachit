@@ -124,7 +124,8 @@ struct AboutView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(sanskrit).italic().foregroundStyle(.secondary)
             Text(english)
-            Text(source).font(.caption).foregroundStyle(.secondary)
+            Text("— \(source)").font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.leading, 12)
         .overlay(alignment: .leading) { Rectangle().fill(Color(nsColor: Palette.lamp)).frame(width: 2) }

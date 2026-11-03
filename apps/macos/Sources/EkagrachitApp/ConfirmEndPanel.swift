@@ -27,7 +27,11 @@ final class ConfirmEndPanel: NSPanel {
         body.font = .systemFont(ofSize: 12)
         body.textColor = .secondaryLabelColor
         // The teachable moment: the urge to leave is the wandering mind.
-        let verse = NSTextField(wrappingLabelWithString: "“Wherever the restless mind wanders, draw it back from there, and let it rest within.”\n— Bhagavad Gītā 6.26")
+        let verse = NSTextField(wrappingLabelWithString: "“Wherever the restless mind wanders, draw it back from there, and let it rest within.”")
+        let citation = NSTextField(labelWithString: "— Bhagavad Gītā 6.26")
+        citation.font = .systemFont(ofSize: 11)
+        citation.textColor = .tertiaryLabelColor
+        citation.alignment = .right
         verse.font = NSFontManager.shared.convert(.systemFont(ofSize: 12), toHaveTrait: .italicFontMask)
         verse.textColor = .secondaryLabelColor
         // Wrapping labels size to their longest line unless told the width.
@@ -43,10 +47,11 @@ final class ConfirmEndPanel: NSPanel {
         let buttons = NSStackView(views: [cancel, hold])
         buttons.orientation = .horizontal
         buttons.spacing = 10
-        let stack = NSStackView(views: [title, body, verse, buttons])
+        let stack = NSStackView(views: [title, body, verse, citation, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
+        stack.setCustomSpacing(2, after: verse)
         stack.edgeInsets = NSEdgeInsets(top: 26, left: 22, bottom: 20, right: 22)
         stack.translatesAutoresizingMaskIntoConstraints = false
         let root = NSView()
@@ -58,6 +63,7 @@ final class ConfirmEndPanel: NSPanel {
             stack.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             body.widthAnchor.constraint(equalToConstant: 320),
             verse.widthAnchor.constraint(equalToConstant: 320),
+            citation.widthAnchor.constraint(equalToConstant: 320),
             hold.widthAnchor.constraint(equalToConstant: 170),
             hold.heightAnchor.constraint(equalToConstant: 28),
         ])

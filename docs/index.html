@@ -70,7 +70,8 @@
     .verse { border-left: 2px solid var(--warm); padding: 2px 0 2px 16px; margin: 18px 0; }
     .verse .sa { font-style: italic; color: #b9b7dc; }
     .verse .en { color: #fff; font-size: 19px; margin: 4px 0; }
-    .verse .src { color: #9a98c0; font-size: 13px; }
+    .verse .src { color: #9a98c0; font-size: 13px; text-align: right; }
+    .verse .src::before { content: "— "; }
     .name-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; }
     .name-sec p { color: #cfcdf0; }
     .name-sec .note { font-size: 13px; color: #9a98c0; margin-top: 28px; }
