@@ -119,6 +119,15 @@ final class WindowTracker {
         return c
     }
 
+    /// Frame of the app's focused (key) window, via Accessibility.
+    func focusedWindowBounds(pid: Int32) -> Rect? {
+        guard AXIsProcessTrusted() else { return nil }
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(pid), kAXFocusedWindowAttribute as CFString, &value) == .success,
+              let v = value, CFGetTypeID(v) == AXUIElementGetTypeID() else { return nil }
+        return Self.frame(of: v as! AXUIElement)
+    }
+
     private static func axWindowTitles(pid: Int32) -> [(Rect, String)] {
         guard AXIsProcessTrusted() else { return [] }
         let app = AXUIElementCreateApplication(pid)

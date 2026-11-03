@@ -93,6 +93,10 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const ov = all.filter((w) => w.pid === appPid() && w.layer === OVERLAY_LAYER);
     const slack = 2 * (hole.w + hole.h);
     const overlapHole = ov.reduce((a, o) => a + inter(o, hole), 0);
+    if (overlapHole > slack) {
+      console.log('window stack at failure:', JSON.stringify(all.filter((w) => w.layer === 0 || w.pid === appPid()).slice(0, 14)));
+      console.log('frontmost at failure:', JSON.stringify(frontmost()));
+    }
     assert.ok(overlapHole <= slack, `overlays cover ${overlapHole} px² of the focus window's visible area ${JSON.stringify(hole)}`);
     const coveredOutside = ov.reduce((a, o) => a + inter(o, screen) - inter(o, hole), 0);
     const expected = screen.w * screen.h - inter(hole, screen);
@@ -396,6 +400,8 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
       execFileSync('defaults', ['write', 'com.apple.WindowManager', 'GloballyEnabled', '-bool', 'false']);
       const s = await session(h);
       if (s) await inSW(h, (x) => (globalThis as any).__ekagrachit.requestEnd(x), s.sid);
+      await waitFor(async () => overlays().length, (n) => n === 0, 8_000, 'stage manager session ended');
+      await sleep(1000); // let Stage Manager finish turning off
     }
   });
 
@@ -446,6 +452,11 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     probe('keyup', '49');
     await waitFor(async () => overlays().length, (n) => n === 0, 6_000, 'session ended');
   };
+  /** After a failure mid-test, leave no session behind for the next test. */
+  const endIfRunning = async () => {
+    if (overlays().length === 0) return;
+    try { await endViaHold(); } catch { /* reported by the test itself */ }
+  };
   const appWindow = (owner: string) => windows().filter((w) => w.owner === owner && w.layer === 0 && w.w > 200)[0];
 
   test('native app: ⌃⌥⌘F focuses the TextEdit window in front of you', { timeout: 120_000 }, async () => {
@@ -456,6 +467,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     await sleep(1000);
     const original = appWindow('TextEdit')!;
     probe('key', '3', 'ctrl,opt,cmd'); // ⌃⌥⌘F
+    try {
     await waitActive('native session active');
     await sleep(800);
     shot('30-native-textedit');
@@ -473,7 +485,10 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     assertHoleAround(rect, 'textedit-after-new-window');
     shot('31-native-after-new-window');
     await endViaHold();
-    execFileSync('pkill', ['-x', 'TextEdit']);
+    } finally {
+      await endIfRunning();
+      try { execFileSync('pkill', ['-x', 'TextEdit']); } catch { /* not running */ }
+    }
   });
 
   test('native app via ekagrachit:// URL (Shortcuts, Raycast): focus Terminal', { timeout: 120_000 }, async () => {
@@ -484,6 +499,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     execFileSync(lsregister, ['-f', APP]);
     const before = execFileSync('pgrep', ['-x', 'Ekagrachit'], { encoding: 'utf8' }).trim().split('\n');
     execFileSync('open', ['ekagrachit://focus?app=com.apple.Terminal&minutes=5']);
+    try {
     await sleep(1500);
     const after = execFileSync('pgrep', ['-x', 'Ekagrachit'], { encoding: 'utf8' }).trim().split('\n');
     const extra = after.filter((p) => !before.includes(p));
@@ -494,5 +510,8 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     shot('32-native-terminal');
     assertHoleAround({ x: term.x, y: term.y, w: term.w, h: term.h }, 'terminal');
     await endViaHold();
+    } finally {
+      await endIfRunning();
+    }
   });
 });

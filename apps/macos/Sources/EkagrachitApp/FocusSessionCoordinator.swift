@@ -97,10 +97,10 @@ final class FocusSessionCoordinator: ObservableObject {
     @Published private(set) var windowChoices: [WindowCandidate] = []
     /// The app the user was in before opening Ekagrachit's menu.
     private(set) var lastExternalApp: NSRunningApplication?
-    var lastAppWasBrowser: Bool { WindowCandidates.browserBundleIDs.contains(lastExternalApp?.bundleIdentifier ?? "") }
     /// Set when ⌃⌥⌘F was pressed on a browser: start on its active tab when it answers.
     private var quickStartWebCID: String?
     private var lastRefocus = Date.distantPast
+    private var lastAssessmentLog = ""
     private var focusDebouncer = FocusLossDebouncer()
     private var hudFlash: (text: String, until: Date)?
     private let toast = ToastPanel()
@@ -199,6 +199,7 @@ final class FocusSessionCoordinator: ObservableObject {
 
     /// Ask the extension for the active tab's URL (menu prefill).
     func refreshSuggestion() {
+        suggestedTarget = nil // so the same URL fills the (cleared) field again
         guard let id = activeConnection, machine.phase == .idle else { return }
         let cid = BridgeProtocol.newSid()
         pendingTabCID = cid
@@ -215,11 +216,39 @@ final class FocusSessionCoordinator: ObservableObject {
 
     // MARK: - User intents
 
-    /// Returns an error message, or nil if the session is starting.
-    @discardableResult
     /// Refresh the list of windows offered in the menu.
     func refreshWindowChoices() {
         windowChoices = WindowCandidates.rank(tracker.candidates(), ownBundleID: Bundle.main.bundleIdentifier)
+    }
+
+    /// The app the user was in when they opened the menu: the frontmost app,
+    /// unless that is Ekagrachit itself (then the last other app activated).
+    var appBeforeMenu: NSRunningApplication? {
+        let front = NSWorkspace.shared.frontmostApplication
+        if let front, front.processIdentifier != ProcessInfo.processInfo.processIdentifier { return front }
+        return lastExternalApp
+    }
+
+    /// The menu's choice for an app: its focused window if listed, else its frontmost listed window.
+    func frontWindowChoice(of pid: Int32) -> WindowCandidate? {
+        let mine = windowChoices.filter { $0.pid == pid }
+        if let focused = tracker.focusedWindowBounds(pid: pid),
+           let w = mine.first(where: { $0.bounds.approximatelyEquals(focused, tolerance: WindowMatching.boundsTolerance) }) {
+            return w
+        }
+        return mine.first
+    }
+
+    /// The window a hotkey or URL should focus for an app: its focused (key)
+    /// window, else its frontmost real window. Never a tiny helper window.
+    private func frontWindow(pid: Int32? = nil, bundleID: String? = nil) -> WindowCandidate? {
+        let all = WindowCandidates.rank(tracker.candidates(), ownBundleID: Bundle.main.bundleIdentifier, limit: 200)
+        let mine = all.filter { c in (pid.map { c.pid == $0 } ?? true) && (bundleID.map { c.bundleID == $0 } ?? true) }
+        if let p = mine.first?.pid, let focused = tracker.focusedWindowBounds(pid: p),
+           let w = mine.first(where: { $0.pid == p && $0.bounds.approximatelyEquals(focused, tolerance: WindowMatching.boundsTolerance) }) {
+            return w
+        }
+        return mine.first
     }
 
     /// Focus a native Mac window (Word, Pages, Cursor, iTerm2, …). No browser involved.
@@ -232,6 +261,7 @@ final class FocusSessionCoordinator: ObservableObject {
             Permissions.requestAccessibility()
             return report("Ekagrachit needs the Accessibility permission to keep your window in front. Grant it in System Settings → Privacy & Security → Accessibility, then start again.")
         }
+        Log.info("start app session: \(target.bundleID) window \(target.windowNumber.map(String.init) ?? "?")")
         tracker.beginSession(browserPid: target.pid)
         if let rejection = dispatch(.startAppRequested(sid: BridgeProtocol.newSid(), app: target, duration: TimeInterval(minutes * 60))) {
             return report(rejection)
@@ -258,8 +288,7 @@ final class FocusSessionCoordinator: ObservableObject {
             bridge.send(.activeTabRequest(cid: cid), to: id)
             return
         }
-        guard let window = tracker.candidates().filter({ $0.pid == front.processIdentifier }).min(by: { $0.zIndex < $1.zIndex }),
-              !WindowCandidates.excludedBundleIDs.contains(bundle), bundle != Bundle.main.bundleIdentifier else {
+        guard let window = frontWindow(pid: front.processIdentifier) else {
             toast.show("Bring the window you want to focus on to the front, then press \(HotKey.quickStartDisplay)", for: 5)
             return
         }
@@ -280,7 +309,7 @@ final class FocusSessionCoordinator: ObservableObject {
         if let target = q["url"] {
             error = startSession(target: target, minutes: minutes)
         } else if let bundle = q["app"] {
-            if let w = tracker.candidates().filter({ $0.bundleID == bundle }).min(by: { $0.zIndex < $1.zIndex }) {
+            if let w = frontWindow(bundleID: bundle) {
                 error = startAppSession(w.target, minutes: minutes)
             } else {
                 error = "No open window of \(bundle) to focus on."
@@ -291,6 +320,8 @@ final class FocusSessionCoordinator: ObservableObject {
         if let error { toast.show(error, for: 6) }
     }
 
+    /// Returns an error message, or nil if the session is starting.
+    @discardableResult
     func startSession(target: String, minutes: Int) -> String? {
         let normalized: String
         switch TargetValidation.normalize(target) {
@@ -308,6 +339,7 @@ final class FocusSessionCoordinator: ObservableObject {
         guard let pid = currentBrowserPid() else {
             return deferUntilChromeIsReady(target: normalized, minutes: minutes)
         }
+        Log.info("start web session")
         tracker.beginSession(browserPid: pid)
         if let rejection = dispatch(.startRequested(sid: BridgeProtocol.newSid(), target: normalized, duration: TimeInterval(minutes * 60))) {
             return report(rejection)
@@ -687,6 +719,11 @@ final class FocusSessionCoordinator: ObservableObject {
             browserPid: tracker.browserPid,
             ownPid: ProcessInfo.processInfo.processIdentifier
         )
+        let summary = "\(assessment) front=\(front?.bundleIdentifier ?? "-") focus=\(info.map { "\($0.number)@\($0.bounds)" } ?? "none")"
+        if summary != lastAssessmentLog {
+            lastAssessmentLog = summary
+            Log.info("focus: \(summary)")
+        }
         switch focusDebouncer.next(assessment, frontmostIsBrowser: front?.processIdentifier == tracker.browserPid, now: clock.now()) {
         case .openHole:
             overlays.setSuspended(false)

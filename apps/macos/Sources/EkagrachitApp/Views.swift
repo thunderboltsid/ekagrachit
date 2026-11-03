@@ -74,12 +74,18 @@ struct MenuContentView: View {
             if presets.contains(d) { choice = .preset(d) } else { choice = .custom; customMinutes = d }
             coordinator.refreshWindowChoices()
             // Start from what you were just doing: the page you were reading,
-            // or the window you were working in.
-            if coordinator.lastAppWasBrowser || coordinator.windowChoices.isEmpty {
+            // or the window you were working in. Exactly one of the two is
+            // chosen, so Return always starts what the menu shows.
+            selectedWindow = nil
+            if let app = coordinator.appBeforeMenu, !WindowCandidates.browserBundleIDs.contains(app.bundleIdentifier ?? ""),
+               let w = coordinator.frontWindowChoice(of: app.processIdentifier) {
+                selectedWindow = w
+                target = ""
+                urlFocused = false
+            } else {
+                target = ""
                 urlFocused = true
                 coordinator.refreshSuggestion()
-            } else if let pid = coordinator.lastExternalApp?.processIdentifier {
-                selectedWindow = coordinator.windowChoices.first { $0.pid == pid }
             }
         }
         .onChange(of: coordinator.suggestedTarget) { _, url in
