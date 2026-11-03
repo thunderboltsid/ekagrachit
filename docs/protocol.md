@@ -3,9 +3,7 @@
 Transport on both hops: 32-bit little-endian (native) length prefix + UTF-8 JSON
 object, max 1 MiB per message.
 
-```
-extension ⇄ (Chrome Native Messaging, stdio) ⇄ ekagrachit-host ⇄ (Unix socket) ⇄ Ekagrachit.app
-```
+![Transport: Chrome extension ⇄ ekagrachit-host over Native Messaging (stdio, u32 length + UTF-8 JSON) ⇄ Ekagrachit.app over a same-user Unix socket with the same framing.](images/diagrams/transport.svg)
 
 All messages carry `"v": 1` and a `"type"`. Unknown types and malformed fields
 are dropped by the receiver (`parseInbound` in TS, `AppInbound.parse` in Swift).

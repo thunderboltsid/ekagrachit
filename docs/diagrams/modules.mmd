@@ -1,0 +1,18 @@
+flowchart LR
+    subgraph native["apps/macos · Swift package"]
+        direction TB
+        appmod["EkagrachitApp<br/>impure shell · AppKit · SwiftUI<br/>coordinator · overlays · window tracking"]
+        hostmod["EkagrachitHost<br/>ekagrachit-host relay"]
+        core["EkagrachitCore · no AppKit<br/>state machine · deadlines · protocol<br/>geometry · focus policy · IPC"]
+        appmod --> core
+        hostmod --> core
+    end
+    subgraph chrome["extensions/chrome · TypeScript"]
+        direction TB
+        uimod["src/ui<br/>popup · Saved for later page"]
+        bg["src/background<br/>FocusController · NativeBridge"]
+        shared["src/shared · pure<br/>identity · DNR rules · protocol · reconcile"]
+        uimod -->|runtime messages| bg
+        bg --> shared
+    end
+    core <-.->|"protocol v1, mirrored<br/>and tested on both sides"| shared

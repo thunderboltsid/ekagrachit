@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    actor U as You
+    participant A as Ekagrachit.app
+    participant H as ekagrachit-host
+    participant E as Extension
+    participant C as Chrome
+    U->>A: Start Focus (URL, 25 min)
+    A->>A: idle → preparing · persist deadline
+    A->>H: sync {session, phase: preparing}
+    H->>E: (relay)
+    E->>C: windows.create(popup) · install DNR rules
+    E->>H: window_ready {windowId, tabId, bounds}
+    H->>A: (relay)
+    A->>A: locate native window (browser pid + bounds)
+    A->>A: show overlays · start focus loop
+    A->>E: sync {phase: active} (via host)
+    Note over A,E: sync is full desired state: re-sent on every change,<br/>every 10 s and on reconnect · a stale (epoch, seq) is ignored
+    U-->>C: tries a link to Jira
+    C-->>E: blocked before the request (DNR)
+    E->>A: violation {host} → pill: "Saved for later"

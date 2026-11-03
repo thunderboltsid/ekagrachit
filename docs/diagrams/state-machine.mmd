@@ -1,0 +1,11 @@
+stateDiagram-v2
+    direction LR
+    [*] --> idle
+    idle --> preparing: start · restore · adopt
+    preparing --> active: window located<br/>+ overlays shown
+    preparing --> ending: timeout · failure<br/>· end · expiry
+    active --> degraded: extension disconnected<br/>· focus window missing
+    degraded --> active: window re-verified
+    active --> ending: expiry · user end<br/>· extension ended
+    degraded --> ending: 120 s · end · expiry
+    ending --> idle: ack · disconnect · 4 s

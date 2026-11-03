@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph ext["Chrome extension · TypeScript · MV3"]
+        direction TB
+        bridge["NativeBridge<br/>persistent connectNative port"]
+        ctrl["FocusController<br/>single serial queue"]
+        policy["Identity policy · DNR rules<br/>pure, src/shared"]
+        bridge --- ctrl --- policy
+    end
+    host["ekagrachit-host<br/>validating relay<br/>inside the app bundle"]
+    subgraph app["Ekagrachit.app · Swift · authoritative"]
+        direction TB
+        server["BridgeServer"]
+        coord["FocusSessionCoordinator<br/>menu · setup · time pill"]
+        sm["SessionStateMachine<br/>pure, EkagrachitCore"]
+        iso["OverlayManager · WindowTracker"]
+        server --- coord --- sm
+        coord --- iso
+    end
+    popup["Dedicated Chrome popup<br/>your profile and sign-ins"]
+    desktop["Everything else on screen<br/>other apps · Dock · Spaces"]
+
+    ext <==>|"Native Messaging<br/>stdio"| host
+    host <==>|"Unix socket<br/>same user only"| app
+    ext -->|"opens · blocks off-target loads<br/>guards tabs and windows"| popup
+    app -->|"covers · brings you back"| desktop

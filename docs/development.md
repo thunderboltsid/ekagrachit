@@ -1,6 +1,9 @@
 # Development
 
 ## Layout and boundaries
+
+![Module diagram: in the Swift package, EkagrachitApp (AppKit/SwiftUI shell) and EkagrachitHost (relay) depend on EkagrachitCore (no AppKit: state machine, deadlines, protocol, geometry, focus policy, IPC). In the extension, src/ui talks to src/background via runtime messages, which uses the pure src/shared. The protocol is mirrored between EkagrachitCore and src/shared and tested on both sides.](images/diagrams/modules.svg)
+
 - `apps/macos/Sources/EkagrachitCore` — **no AppKit**. Everything that can be
   decided without the OS lives here and is unit-tested on macOS and Linux:
   `SessionStateMachine` (pure reducer: `(state, event, now) -> (state, effects)`),
@@ -49,3 +52,11 @@ overrides: `EKAGRACHIT_SOCKET` (socket path), `EKAGRACHIT_SUPPORT_DIR` (state di
 - TypeScript uses only erasable syntax (runs directly under Node's type stripping for tests).
 - No runtime dependencies in the extension; dev dependencies: typescript, esbuild, playwright, @types.
 - Every new escape path gets an E2E test (extension) or a `FocusPolicy`/state-machine test (native).
+
+## Diagrams
+Diagrams are written in Mermaid (`docs/diagrams/*.mmd`) and committed as rendered
+SVGs (`docs/images/diagrams/*.svg`), which the docs embed. After editing a
+`.mmd` file, re-render with:
+```bash
+scripts/render-diagrams.sh   # pinned mermaid-cli; uses local Chrome/Chromium
+```

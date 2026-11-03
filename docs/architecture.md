@@ -4,26 +4,7 @@
 
 ## Components
 
-```
-┌─────────────────────────────────────┐
-│ Ekagrachit.app  (Swift, AppKit/SwiftUI, menu bar)          authoritative
-│  FocusSessionCoordinator ── SessionStateMachine (pure, EkagrachitCore)
-│  OverlayManager · WindowTracker · HotKey · SessionStore · BridgeServer
-└──────────────┬──────────────────────┘
-               │ Unix domain socket  ~/Library/Application Support/Ekagrachit/bridge.sock
-               │ (dir 0700, socket 0600, peer-uid check; length-prefixed JSON)
-┌──────────────▼──────────────────────┐
-│ ekagrachit-host  (Swift, inside the app bundle)
-│  validating stdio <-> socket relay; reports app reachability + browser pid
-└──────────────▲──────────────────────┘
-               │ Chrome Native Messaging (stdio), started by the extension
-┌──────────────▼──────────────────────┐
-│ Chrome extension (TypeScript, MV3 service worker)
-│  FocusController · NativeBridge · identity policy · DNR rule builder
-└──────────────┬──────────────────────┘
-               ▼
-     Dedicated Chrome popup window (user's real profile & logins)
-```
+![Component diagram: the Chrome extension (NativeBridge, FocusController, identity policy and DNR rules) talks over Chrome Native Messaging to ekagrachit-host, which relays over a same-user Unix socket to Ekagrachit.app (BridgeServer, FocusSessionCoordinator, SessionStateMachine, OverlayManager and WindowTracker). The extension opens and guards the dedicated Chrome popup; the app covers everything else on screen.](images/diagrams/components.svg)
 
 | Concern | Owner |
 |---|---|
@@ -58,6 +39,10 @@ re-syncs every 10 s). `epoch` (per app launch) + `seq` reject stale messages;
 every session-scoped message carries `sid` and is ignored if it doesn't match.
 Sessions ended from the browser are tombstoned so a later sync can't revive them.
 See [protocol.md](protocol.md).
+
+Starting a session, end to end:
+
+![Sequence diagram: You start a focus session in the app; the app enters preparing and sends sync(preparing) via the host; the extension creates the popup and installs DNR rules, then reports window_ready; the app locates the native window, shows overlays and sends sync(active). Later, a link to Jira is blocked by DNR before any request and the extension reports a violation, which the pill shows as "Saved for later".](images/diagrams/session-start.svg)
 
 ### Two-layer browser enforcement
 1. **Proactive (before any request is made)** – `declarativeNetRequest`
@@ -128,12 +113,7 @@ a dead app can never leave the browser locked.
 
 ## Session state machine (app)
 
-```
-idle ──start/restore/adopt──▶ preparing ──window located + overlays up──▶ active
- ▲                              │ timeout / failure / end                 │   ▲
- │                              ▼                                         ▼   │ re-verified
- └──── ack / disconnect / 4 s ── ending ◀── expiry / user end / ext end ── degraded
-```
+![State diagram: idle → preparing (start, restore, adopt) → active (window located and overlays shown). active ⇄ degraded (extension disconnected or focus window missing / window re-verified). preparing, active and degraded → ending (timeout, failure, expiry, user end, extension ended, or 120 s degraded). ending → idle (ack, disconnect or 4 s).](images/diagrams/state-machine.svg)
 
 `active` requires: valid URL, extension connected, popup created, tab
 verified, native window located, overlays shown, same sid acknowledged.
