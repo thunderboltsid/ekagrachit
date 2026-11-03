@@ -388,30 +388,83 @@ final class FocusSessionCoordinator: ObservableObject {
     /// status item: on macOS 26 menu-bar extras are hosted by the system, so
     /// there is no in-process window to click.
     func openMenuWindow() {
-        if let w = NSApp.windows.first(where: { $0.isVisible && String(describing: type(of: $0)).contains("MenuBarExtra") }) {
+        Log.info("show_menu received")
+        if let w = visibleMenuWindow {
             NSApp.activate()
             w.makeKeyAndOrderFront(nil)
             return
         }
-        let app = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
-        var bar: CFTypeRef?
-        var kids: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, "AXExtrasMenuBar" as CFString, &bar) == .success, let bar,
-              CFGetTypeID(bar) == AXUIElementGetTypeID(),
-              AXUIElementCopyAttributeValue(bar as! AXUIElement, kAXChildrenAttribute as CFString, &kids) == .success,
-              let item = (kids as? [AXUIElement])?.first else {
-            Log.info("show_menu: status item not found")
-            toast.show("Click ◎ in the menu bar to choose what to focus on.", for: 4)
+        toggleStatusItem(onFailure: { [weak self] in
+            self?.toast.show("Click ◎ in the menu bar to choose what to focus on.", for: 4)
+        })
+    }
+
+    private var visibleMenuWindow: NSWindow? {
+        NSApp.windows.first { $0.isVisible && String(describing: type(of: $0)).contains("MenuBarExtra") }
+    }
+
+    /// Opens or closes the menu exactly as a click on ◎ does, so SwiftUI's
+    /// idea of whether the menu is open stays true. (Hiding the window
+    /// directly left it believing the menu was open: the next click on ◎
+    /// then did nothing.)
+    private func toggleStatusItem(onFailure: (@MainActor @Sendable () -> Void)? = nil) {
+        // 1. In-process: our status item's button, if AppKit hosts it here.
+        if let button = Self.statusBarButton() {
+            Log.info("menu: clicking the status item button")
+            button.performClick(nil)
             return
         }
-        let result = AXUIElementPerformAction(item, kAXPressAction as CFString)
-        if result != .success { Log.info("show_menu: press failed \(result.rawValue)") }
+        // 2. Accessibility press on our own menu-bar extra (macOS 26 hosts
+        //    extras outside the app), off the main thread: the main thread
+        //    must be free to answer it.
+        let pid = ProcessInfo.processInfo.processIdentifier
+        DispatchQueue.global(qos: .userInitiated).async {
+            let app = AXUIElementCreateApplication(pid)
+            var bar: CFTypeRef?
+            var kids: CFTypeRef?
+            var result = AXError.failure
+            if AXUIElementCopyAttributeValue(app, "AXExtrasMenuBar" as CFString, &bar) == .success, let bar,
+               CFGetTypeID(bar) == AXUIElementGetTypeID(),
+               AXUIElementCopyAttributeValue(bar as! AXUIElement, kAXChildrenAttribute as CFString, &kids) == .success,
+               let item = (kids as? [AXUIElement])?.first {
+                result = AXUIElementPerformAction(item, kAXPressAction as CFString)
+            }
+            let code = result.rawValue
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    Log.info("menu: accessibility press -> \(code)")
+                    if code != AXError.success.rawValue { onFailure?() }
+                }
+            }
+        }
+    }
+
+    /// Our own NSStatusBarButton, found among this process's windows (public AppKit types only).
+    private static func statusBarButton() -> NSStatusBarButton? {
+        func find(_ v: NSView?) -> NSStatusBarButton? {
+            guard let v else { return nil }
+            if let b = v as? NSStatusBarButton { return b }
+            for sub in v.subviews { if let b = find(sub) { return b } }
+            return nil
+        }
+        for w in NSApp.windows where String(describing: type(of: w)).contains("StatusBar") {
+            if let b = find(w.contentView?.superview ?? w.contentView) { return b }
+        }
+        return nil
     }
 
     private func closeMenuWindow() {
-        for w in NSApp.windows where w.isVisible && String(describing: type(of: w)).contains("MenuBarExtra") {
-            Log.info("closing menu window")
-            w.close()
+        guard visibleMenuWindow != nil else { return }
+        Log.info("closing menu window")
+        toggleStatusItem(onFailure: { [weak self] in
+            // Last resort; may leave SwiftUI thinking the menu is open.
+            if let w = self?.visibleMenuWindow { w.close() }
+        })
+        // If the toggle didn't take (no status item found), close it anyway.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            MainActor.assumeIsolated {
+                if let w = self?.visibleMenuWindow { Log.info("menu still visible; closing directly"); w.close() }
+            }
         }
     }
 
