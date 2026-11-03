@@ -149,6 +149,9 @@ final class FocusSessionCoordinator: ObservableObject {
         tickTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
+        // One unresponsive app must never freeze Ekagrachit: cap every
+        // Accessibility call (the system default is about 6 s).
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), AX.timeout)
         observeSystem()
         quickStartHotKey = HotKey(keyCode: HotKey.quickStartKeyCode, modifiers: HotKey.emergencyModifiers) { [weak self] in
             MainActor.assumeIsolated { self?.focusFrontmostWindow() }
@@ -411,6 +414,7 @@ final class FocusSessionCoordinator: ObservableObject {
         // 1. In-process: our status item's button, if AppKit hosts it here.
         if let button = Self.statusBarButton() {
             Log.info("menu: clicking the status item button")
+            if visibleMenuWindow == nil { NSApp.activate() } // so typing, Return and Escape reach the menu
             button.performClick(nil)
             return
         }

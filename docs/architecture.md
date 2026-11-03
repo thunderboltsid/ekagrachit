@@ -114,6 +114,28 @@ end it early (safe direction). The extension receives `remainingMs` (no clock
 comparison across processes) and keeps its own alarm at the deadline (+3 s) so
 a dead app can never leave the browser locked.
 
+### Performance: never wait on another app
+The app's main thread draws the overlays, runs the 10 Hz focus check and
+answers the menu, so it must never block on another process.
+- **Accessibility calls are capped at 0.3 s** (`AXUIElementSetMessagingTimeout`
+  on the system-wide element and on every app element). The system default,
+  about 6 s per call, let one busy or hung app freeze Ekagrachit.
+- **Raising runs off the main thread** (`AXRaiser`: a serial queue; requests
+  that arrive while one is in flight are dropped, since it already does the
+  job). The window's AX element is cached between raises instead of listing
+  the app's windows and reading every frame each time.
+- **Browsers are never asked for window titles.** Querying Chrome through
+  Accessibility makes it build accessibility data for the page, which is
+  expensive for documents like Google Docs. Titles are read only for apps
+  that can be targets, and when re-finding a native window, only for that
+  app.
+- The focus check itself uses only window-server queries
+  (`CGWindowListCopyWindowInfo` for one window and the windows above it), no
+  Accessibility.
+- Regression test: `tests/macos/desktop.test.ts` freezes the focused app with
+  `SIGSTOP`, switches away repeatedly, and requires Ekagrachit to answer its
+  own Accessibility queries within a second each time.
+
 ## Session state machine (app)
 
 ![State diagram: idle → preparing (start, restore, adopt) → active (window located and overlays shown). active ⇄ degraded (extension disconnected or focus window missing / window re-verified). preparing, active and degraded → ending (timeout, failure, expiry, user end, extension ended, or 120 s degraded). ending → idle (ack, disconnect or 4 s).](images/diagrams/state-machine.svg)

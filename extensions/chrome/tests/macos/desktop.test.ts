@@ -503,6 +503,28 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     assert.equal(top?.number, original.number, `the focused TextEdit window is back on top (top: ${JSON.stringify(top)})`);
     assertHoleAround(rect, 'textedit-after-new-window');
     shot('31-native-after-new-window');
+
+    // Performance regression (a user's app froze): the focused app stops
+    // responding entirely. Switching away triggers refocus, which talks to
+    // that app through Accessibility. Ekagrachit must stay responsive: its
+    // own UI answers within a second, every time.
+    execFileSync('kill', ['-STOP', String(original.pid)]);
+    try {
+      const timings: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        probe('activate', 'com.apple.finder');
+        await sleep(400);
+        const t0 = Date.now();
+        probe('statusitem', String(appPid())); // answered by Ekagrachit's main thread
+        timings.push(Date.now() - t0);
+      }
+      console.log('Ekagrachit response times while the focus app is frozen (ms):', timings.join(', '));
+      assert.ok(Math.max(...timings) < 1000, `Ekagrachit stalled behind a frozen app: ${timings.join(', ')} ms`);
+      assert.ok(overlays().length > 0, 'overlays still up');
+    } finally {
+      execFileSync('kill', ['-CONT', String(original.pid)]);
+    }
+    await waitFor(async () => frontmost().pid, (p) => p === original.pid, 6_000, 'back to TextEdit once it responds again');
     await endViaHold();
     } finally {
       await endIfRunning();

@@ -95,15 +95,26 @@ final class WindowTracker {
     /// Normal-level windows with their app and (via Accessibility) title,
     /// front to back. `onScreenOnly: false` also includes minimised windows and
     /// windows on other Spaces (used to find a target again).
-    func candidates(onScreenOnly: Bool = true) -> [WindowCandidate] {
+    ///
+    /// Titles cost one Accessibility round trip per app, so they are read only
+    /// for apps that can be targets (never browsers: querying Chrome makes it
+    /// build accessibility data for heavy pages such as Google Docs), and only
+    /// for `titlesFor` when given.
+    func candidates(onScreenOnly: Bool = true, titlesFor bundles: Set<String>? = nil) -> [WindowCandidate] {
         let infos = Self.list(onScreenOnly ? [.optionOnScreenOnly, .excludeDesktopElements] : [.optionAll])
             .filter { $0.layer == 0 && $0.alpha > 0.01 }
         var titlesByPid: [Int32: [(Rect, String)]] = [:]
         var out: [WindowCandidate] = []
+        let own = Bundle.main.bundleIdentifier
         for (z, w) in infos.enumerated() {
             guard let app = NSRunningApplication(processIdentifier: w.pid), app.activationPolicy == .regular,
                   let bundleID = app.bundleIdentifier else { continue }
-            if titlesByPid[w.pid] == nil { titlesByPid[w.pid] = Self.axWindowTitles(pid: w.pid) }
+            let wantsTitle = bundles.map { $0.contains(bundleID) } ?? true
+            if titlesByPid[w.pid] == nil {
+                titlesByPid[w.pid] = wantsTitle && !WindowCandidates.browserBundleIDs.contains(bundleID)
+                    && !WindowCandidates.excludedBundleIDs.contains(bundleID) && bundleID != own
+                    ? AX.windowTitles(pid: w.pid) : []
+            }
             let title = titlesByPid[w.pid]?.first { $0.0.approximatelyEquals(w.bounds, tolerance: WindowMatching.boundsTolerance) }?.1 ?? ""
             out.append(WindowCandidate(number: w.number, pid: w.pid, bundleID: bundleID, appName: app.localizedName ?? bundleID,
                                        title: title, bounds: w.bounds, zIndex: z))
@@ -113,26 +124,48 @@ final class WindowTracker {
 
     /// Finds the target's window (again) and makes it the tracked focus window.
     func locateApp(_ target: NativeWindowTarget) -> WindowCandidate? {
-        guard let c = WindowCandidates.relocate(target, in: candidates(onScreenOnly: false)) else { return nil }
+        guard let c = WindowCandidates.relocate(target, in: candidates(onScreenOnly: false, titlesFor: [target.bundleID])) else { return nil }
         focusWindow = c.number
         browserPid = c.pid
         return c
     }
 
     /// Frame of the app's focused (key) window, via Accessibility.
-    func focusedWindowBounds(pid: Int32) -> Rect? {
-        guard AXIsProcessTrusted() else { return nil }
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(pid), kAXFocusedWindowAttribute as CFString, &value) == .success,
-              let v = value, CFGetTypeID(v) == AXUIElementGetTypeID() else { return nil }
-        return Self.frame(of: v as! AXUIElement)
+    func focusedWindowBounds(pid: Int32) -> Rect? { AX.focusedWindowFrame(pid: pid) }
+
+    // MARK: Raising
+
+    private let raiser = AXRaiser()
+
+    /// Brings the focus window to the front. Best effort, never blocks: the
+    /// Accessibility work runs on its own queue (a busy app can't freeze
+    /// Ekagrachit), and overlapping requests collapse into one.
+    func raise(info: WindowInfo?) {
+        guard browserPid > 0, let app = NSRunningApplication(processIdentifier: browserPid) else { return }
+        if app.isHidden { app.unhide() }
+        guard AXIsProcessTrusted() else {
+            app.activate()
+            return
+        }
+        raiser.raise(pid: browserPid, window: info.map { ($0.number, $0.bounds, $0.onScreen) })
+    }
+}
+
+/// Accessibility helpers. Every element gets a short messaging timeout: the
+/// default (~6 s) turns one unresponsive app into a frozen Ekagrachit.
+enum AX {
+    static let timeout: Float = 0.3
+
+    static func app(_ pid: Int32) -> AXUIElement {
+        let a = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(a, timeout)
+        return a
     }
 
-    private static func axWindowTitles(pid: Int32) -> [(Rect, String)] {
+    static func windowTitles(pid: Int32) -> [(Rect, String)] {
         guard AXIsProcessTrusted() else { return [] }
-        let app = AXUIElementCreateApplication(pid)
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
+        guard AXUIElementCopyAttributeValue(app(pid), kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement] else { return [] }
         return windows.compactMap { w in
             guard let f = frame(of: w) else { return nil }
@@ -142,37 +175,22 @@ final class WindowTracker {
         }
     }
 
-    // MARK: Raising
-
-    /// Brings the focus window to the front. Best effort, never throws.
-    func raise(info: WindowInfo?) {
-        guard browserPid > 0, let app = NSRunningApplication(processIdentifier: browserPid) else { return }
-        if app.isHidden { app.unhide() }
-        if AXIsProcessTrusted() {
-            let axApp = AXUIElementCreateApplication(browserPid)
-            if let info, let win = Self.axWindow(of: axApp, matching: info.bounds) {
-                AXUIElementSetAttributeValue(win, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
-                AXUIElementSetAttributeValue(win, kAXMainAttribute as CFString, kCFBooleanTrue)
-                AXUIElementPerformAction(win, kAXRaiseAction as CFString)
-            }
-            AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-        } else {
-            app.activate()
-        }
+    static func focusedWindowFrame(pid: Int32) -> Rect? {
+        guard AXIsProcessTrusted() else { return nil }
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app(pid), kAXFocusedWindowAttribute as CFString, &value) == .success,
+              let v = value, CFGetTypeID(v) == AXUIElementGetTypeID() else { return nil }
+        return frame(of: v as! AXUIElement) // swiftlint:disable:this force_cast
     }
 
-    private static func axWindow(of app: AXUIElement, matching bounds: Rect) -> AXUIElement? {
+    static func window(of app: AXUIElement, matching bounds: Rect) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement] else { return nil }
-        for w in windows {
-            guard let frame = frame(of: w) else { continue }
-            if frame.approximatelyEquals(bounds, tolerance: WindowMatching.boundsTolerance) { return w }
-        }
-        return nil
+        return windows.first { frame(of: $0)?.approximatelyEquals(bounds, tolerance: WindowMatching.boundsTolerance) ?? false }
     }
 
-    private static func frame(of w: AXUIElement) -> Rect? {
+    static func frame(of w: AXUIElement) -> Rect? {
         var posRef: CFTypeRef?
         var sizeRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(w, kAXPositionAttribute as CFString, &posRef) == .success,
@@ -187,6 +205,43 @@ final class WindowTracker {
         AXValueGetValue(sizeRef as! AXValue, .cgSize, &s)
         // swiftlint:enable force_cast
         return Rect(x: p.x, y: p.y, width: s.width, height: s.height)
+    }
+}
+
+/// Raises a window through Accessibility on a private serial queue. Keeps the
+/// window's AX element between raises (finding it means listing the app's
+/// windows and reading each frame), and drops a request while one is running:
+/// the running one already does the job.
+final class AXRaiser: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "ekagrachit.ax-raise", qos: .userInteractive)
+    private let lock = NSLock()
+    private var busy = false
+    // Confined to `queue`.
+    private var cached: (pid: Int32, number: UInt32, element: AXUIElement)?
+
+    func raise(pid: Int32, window: (number: UInt32, bounds: Rect, onScreen: Bool)?) {
+        lock.lock()
+        if busy { lock.unlock(); return }
+        busy = true
+        lock.unlock()
+        queue.async { [self] in
+            defer { lock.lock(); busy = false; lock.unlock() }
+            let app = AX.app(pid)
+            if let window {
+                var element: AXUIElement?
+                if let c = cached, c.pid == pid, c.number == window.number { element = c.element }
+                if element == nil, let found = AX.window(of: app, matching: window.bounds) {
+                    element = found
+                    cached = (pid, window.number, found)
+                }
+                if let element {
+                    if !window.onScreen { AXUIElementSetAttributeValue(element, kAXMinimizedAttribute as CFString, kCFBooleanFalse) }
+                    AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
+                    if AXUIElementPerformAction(element, kAXRaiseAction as CFString) == .invalidUIElement { cached = nil }
+                }
+            }
+            AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        }
     }
 }
 
