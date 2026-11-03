@@ -15,7 +15,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DOC_A, JIRA, type Harness, TestServer, allTabs, inSW, launch, session, sleep, waitFor } from '../e2e/harness.ts';
+import { DOC_A, JIRA, SHOWCASE, type Harness, TestServer, allTabs, inSW, launch, session, sleep, waitFor } from '../e2e/harness.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(process.env.EK_APP ?? join(here, '../../../../apps/macos/build/Ekagrachit.app'));
@@ -389,5 +389,38 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
       const s = await session(h);
       if (s) await inSW(h, (x) => (globalThis as any).__ekagrachit.requestEnd(x), s.sid);
     }
+  });
+
+  test('start from the native menu with the keyboard; saved-for-later feedback (product captures)', { timeout: 120_000 }, async () => {
+    // A realistic document in the user's current tab; the menu offers it.
+    const page = h.ctx.pages()[0]!;
+    await page.goto(SHOWCASE);
+    await page.bringToFront();
+    await sleep(800);
+    const item = probe<{ x: number; y: number; w: number; h: number }>('statusitem', String(appPid()));
+    probe('click', String(item.x + item.w / 2), String(item.y + item.h / 2));
+    await sleep(1500);
+    shot('20-menu-prefilled');
+    probe('key', '36'); // Return: start with the prefilled URL and the default duration
+    await waitActive('session started from the menu');
+    const s = (await session(h))!;
+    assert.equal(s.owner, 'native');
+    // A pleasant window size for the captures, centred.
+    await inSW(h, (id) => chrome.windows.update(id, { left: 112, top: 70, width: 800, height: 620 }).then(() => undefined), s.windowId!);
+    await sleep(1500);
+    assertHoleAround(await popupBounds(), 'showcase');
+    shot('21-focus');
+    // Reaching for a related ticket: blocked, and the pill says it was saved.
+    const doc = h.ctx.pages().find((p) => p.url().includes('SHOWCASE'))!;
+    await doc.click('#pr');
+    await sleep(700);
+    shot('22-saved-for-later-pill');
+    const parked = await inSW(h, async () => ((await chrome.storage.local.get('session')).session as { parked?: string[] }).parked ?? []);
+    assert.ok(parked.some((u) => u.includes('/pull/882')), `PR link saved: ${JSON.stringify(parked)}`);
+    await inSW(h, (x) => (globalThis as any).__ekagrachit.requestEnd(x), s.sid);
+    await waitFor(async () => overlays().length, (n) => n === 0, 8_000, 'ended');
+    await waitFor(async () => h.ctx.pages().find((p) => p.url().endsWith('/later.html')) ?? null, (p) => p !== null, 6_000, 'later page');
+    await sleep(1200);
+    shot('23-later');
   });
 });
