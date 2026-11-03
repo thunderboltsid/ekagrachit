@@ -63,6 +63,7 @@ export type Outbound =
   | { v: 1; type: 'window_lost'; sid: string }
   | { v: 1; type: 'violation'; sid: string; kind: ViolationKind; host?: string }
   | { v: 1; type: 'active_tab'; cid: string; url: string }
+  | { v: 1; type: 'show_menu' }
   | { v: 1; type: 'session_closed'; sid: string; reason: string }
   | { v: 1; type: 'error'; sid?: string; code: string; message: string };
 

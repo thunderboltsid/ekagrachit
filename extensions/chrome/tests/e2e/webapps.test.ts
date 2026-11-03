@@ -51,6 +51,13 @@ describe('Web apps by resource id (real Chromium)', () => {
     await server.stop();
   });
 
+  test('without the Mac app, the toolbar button explains where Ekagrachit lives', async () => {
+    await inSW(h, () => (globalThis as any).__ekagrachit.onActionClicked());
+    const page = await waitFor(async () => h.ctx.pages().find((p) => p.url().endsWith('/app.html')) ?? null, (p) => p !== null, 6000, 'app.html');
+    assert.match(await page!.textContent('h2') ?? '', /menu bar/);
+    await page!.close();
+  });
+
   test('every generated regex is supported by Chrome, with real-length ids and long URLs', async () => {
     const patterns = [...TARGETS, ...LONG_TARGETS].flatMap((t) => {
       const r = parseTarget(t);

@@ -81,7 +81,6 @@ export class FocusController {
   lastRefocus = 0;
   private refocusTimer: Timer | null = null;
   private rehomingTabId: number | null = null;
-  private controlWindowId: number | null = null;
   private armTimer: Timer | null = null;
   private expiryTimer: Timer | null = null;
   private lastSync: { epoch: string; seq: number } | null = null;
@@ -243,16 +242,18 @@ export class FocusController {
     });
   }
 
-  /** Opens the extension's own control window (allowed during a session). */
-  async openControls(): Promise<void> {
-    await this.serial(async () => {
-      if (this.controlWindowId !== null && (await this.windowExists(this.controlWindowId))) {
-        await chrome.windows.update(this.controlWindowId, { focused: true });
-        return;
-      }
-      const w = await chrome.windows.create({ url: chrome.runtime.getURL('popup.html?window=1'), type: 'popup', width: 380, height: 460, focused: true });
-      this.controlWindowId = w?.id ?? null;
-    });
+  /**
+   * Toolbar button: Ekagrachit is the Mac app; the extension only helps it.
+   * With the app connected, ask it to open its menu (which offers this tab).
+   * Otherwise explain where Ekagrachit lives, and how to end a session whose
+   * app was quit (reopen it: it resumes the session; then ⌃⌥⌘E).
+   */
+  async onActionClicked(): Promise<void> {
+    if (this.bridge.appConnected) {
+      this.send({ v: 1, type: 'show_menu' });
+      return;
+    }
+    await chrome.tabs.create({ url: chrome.runtime.getURL(this.rec ? 'app.html#session' : 'app.html') });
   }
 
   /** Test support: shorten the running session. Only reachable from inside this worker. */
@@ -595,7 +596,6 @@ export class FocusController {
     const rec = this.rec;
     if (!rec || this.settling || tab.id === undefined) return;
     if (tab.id === rec.tabId || rec.preexistingTabIds.includes(tab.id)) return;
-    if (tab.windowId === this.controlWindowId) return;
     const url = tab.pendingUrl ?? tab.url ?? '';
     if (url.startsWith(chrome.runtime.getURL(''))) return; // our own UI
     await this.park(url, 'tab_closed');
@@ -612,13 +612,12 @@ export class FocusController {
     const rec = this.rec;
     if (!rec || this.settling || rec.windowId === null) return;
     if (windowId === chrome.windows.WINDOW_ID_NONE) return; // another app took focus: the macOS app handles that
-    if (windowId === rec.windowId || windowId === this.controlWindowId) return;
+    if (windowId === rec.windowId) return;
     this.violation('window_refocused');
     await this.refocus(false);
   }
 
   async onWindowRemoved(windowId: number): Promise<void> {
-    if (windowId === this.controlWindowId) this.controlWindowId = null;
     const rec = this.rec;
     if (!rec || windowId !== rec.windowId) return;
     if (this.rehomingTabId !== null) return; // the tab was moved out; onAttached re-homes it

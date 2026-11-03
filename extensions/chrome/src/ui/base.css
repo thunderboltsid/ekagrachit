@@ -29,7 +29,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--fg); outlin
                     background: transparent; color: var(--fg); cursor: pointer; }
 .durations button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .durations input { padding: 6px; text-align: center; }
-button.primary { font: inherit; font-weight: 600; padding: 9px; border-radius: 6px; border: 0;
+button.primary, a.primary { font: inherit; font-weight: 600; padding: 9px; border-radius: 6px; border: 0;
                  background: var(--accent); color: var(--accent-fg); cursor: pointer; }
 button.primary:disabled { opacity: .5; cursor: default; }
 .title { margin: 0; font-weight: 600; word-break: break-all; }

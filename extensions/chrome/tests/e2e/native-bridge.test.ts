@@ -149,6 +149,13 @@ describe('Native bridge: extension <-> ekagrachit-host <-> app', { skip: !exists
     assert.equal((ui as { bridge: string }).bridge, 'app_connected');
   });
 
+  test('the toolbar button asks the app to open its menu (no extension UI)', async () => {
+    const tabsBefore = (await allTabs(h)).length;
+    await inSW(h, () => (globalThis as any).__ekagrachit.onActionClicked());
+    await app.waitFor((m) => m.type === 'show_menu', 'show_menu');
+    assert.equal((await allTabs(h)).length, tabsBefore, 'no page or popup opened in Chrome');
+  });
+
   test('app-initiated session: extension opens the focus window and reports it', async () => {
     app.sync({ sid: SID, target: DOC_A, remainingMs: 25 * 60_000, phase: 'preparing' });
     const ready = await app.waitFor((m) => m.type === 'window_ready' && m.sid === SID, 'window_ready');

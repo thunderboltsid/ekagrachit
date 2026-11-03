@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Combine
 import EkagrachitCore
 import ServiceManagement
@@ -382,6 +383,31 @@ final class FocusSessionCoordinator: ObservableObject {
     }
 
     /// The menu-bar window must not stay open over the focus window.
+    /// Opens the menu-bar window, as if its ◎ had been clicked (the Chrome
+    /// toolbar button asks for this). Uses Accessibility to press our own
+    /// status item: on macOS 26 menu-bar extras are hosted by the system, so
+    /// there is no in-process window to click.
+    func openMenuWindow() {
+        if let w = NSApp.windows.first(where: { $0.isVisible && String(describing: type(of: $0)).contains("MenuBarExtra") }) {
+            NSApp.activate()
+            w.makeKeyAndOrderFront(nil)
+            return
+        }
+        let app = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+        var bar: CFTypeRef?
+        var kids: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, "AXExtrasMenuBar" as CFString, &bar) == .success, let bar,
+              CFGetTypeID(bar) == AXUIElementGetTypeID(),
+              AXUIElementCopyAttributeValue(bar as! AXUIElement, kAXChildrenAttribute as CFString, &kids) == .success,
+              let item = (kids as? [AXUIElement])?.first else {
+            Log.info("show_menu: status item not found")
+            toast.show("Click ◎ in the menu bar to choose what to focus on.", for: 4)
+            return
+        }
+        let result = AXUIElementPerformAction(item, kAXPressAction as CFString)
+        if result != .success { Log.info("show_menu: press failed \(result.rawValue)") }
+    }
+
     private func closeMenuWindow() {
         for w in NSApp.windows where w.isVisible && String(describing: type(of: w)).contains("MenuBarExtra") {
             Log.info("closing menu window")
@@ -644,6 +670,8 @@ final class FocusSessionCoordinator: ObservableObject {
             // Technical detail goes to the log; people get a sentence.
             Log.info("extension error \(code): \(text)")
             if sid == nil || sid == machine.session?.sid { message = Self.friendly(code: code) }
+        case .showMenu:
+            openMenuWindow()
         case .hostHello, .hello:
             break
         }

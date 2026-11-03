@@ -54,6 +54,7 @@ final class ProtocolTests: XCTestCase {
                        .violation(sid: sid, kind: "tab_closed", host: nil))
         XCTAssertEqual(AppInbound.parse(json(["type": "active_tab", "cid": "c1", "url": "https://x.example/"])), .activeTab(cid: "c1", url: "https://x.example/"))
         XCTAssertNil(AppInbound.parse(json(["type": "active_tab", "cid": "c1"])))
+        XCTAssertEqual(AppInbound.parse(json(["v": 1, "type": "show_menu"])), .showMenu)
         let reload = try! JSONSerialization.jsonObject(with: AppOutbound.reload.encoded()) as! [String: Any]
         XCTAssertEqual(reload["type"] as? String, "reload")
     }

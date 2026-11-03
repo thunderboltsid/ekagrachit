@@ -33,6 +33,8 @@ public enum AppInbound: Equatable, Sendable {
     case windowLost(sid: String)
     case violation(sid: String, kind: String, host: String?)
     case activeTab(cid: String, url: String)
+    /// The extension's toolbar button was clicked: open the app's menu.
+    case showMenu
     case sessionClosed(sid: String, reason: String)
     case error(sid: String?, code: String, message: String)
 
@@ -81,6 +83,8 @@ public enum AppInbound: Equatable, Sendable {
         case "active_tab":
             guard let cid = str(obj["cid"], 64), let url = str(obj["url"], BridgeProtocol.maxTargetLength) else { return nil }
             return .activeTab(cid: cid, url: url)
+        case "show_menu":
+            return .showMenu
         case "session_closed":
             guard let sid else { return nil }
             return .sessionClosed(sid: sid, reason: str(obj["reason"], 64) ?? "unknown")

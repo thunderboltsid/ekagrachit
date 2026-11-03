@@ -79,10 +79,10 @@ Run `scripts/doctor.sh` first.
 
 | Symptom | Fix |
 |---|---|
-| Menu says "Chrome extension not connected" | Is Chrome running with the extension enabled? Re-run `install.sh`, then reload the extension (↻). The extension popup shows the bridge state. |
+| Menu says "Chrome extension not connected" | Is Chrome running with the extension enabled? Re-run `install.sh`, then reload the extension (↻). Clicking the extension's toolbar button opens Ekagrachit's menu when they are connected, and an explanation page when they are not. |
 | Extension popup: "Native host not installed" | Open (or quit and reopen) Ekagrachit: it registers itself with Chrome at every launch. Then reload the extension (↻ in `chrome://extensions`). If you loaded the extension from somewhere other than the folder the app shows, its ID differs: remove it and load the app's folder. |
 | Extension popup: "Mac app not running" | Open Ekagrachit.app. |
 | "Accessibility not granted" even after enabling it | Ad-hoc builds change identity on rebuild: remove Ekagrachit from the Accessibility list, add it again, relaunch the app. |
 | Session never becomes active / "focus window could not be set up" | Chrome must be the browser with the extension; check that the popup appeared. Multiple Chrome profiles with the extension: disable it in the others. |
-| Need to get out right now | ⌃⌥⌘E → hold. Or Force Quit Ekagrachit (⌥⌘⎋): overlays vanish with the process; restrictions in Chrome lift at the deadline or via the extension popup (⌃⇧E → hold). |
+| Need to get out right now | ⌃⌥⌘E → hold. Or Force Quit Ekagrachit (⌥⌘⎋): overlays vanish with the process; restrictions in Chrome lift at the deadline, or reopen Ekagrachit (it resumes the session) and press ⌃⌥⌘E → hold. |
 | Chrome shows "This page has been blocked by an extension" | Expected for an instant before Ekagrachit restores the target. If it persists, the target redirects somewhere unexpected; end the session and start it with the final URL. |

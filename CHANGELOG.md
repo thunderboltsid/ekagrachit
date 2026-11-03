@@ -12,6 +12,9 @@ First release.
   Slides and Drive files; GitHub and GitLab pull requests and issues; Jira and
   Linear issues; Notion, Confluence, Figma, Miro, Overleaf, Colab, and Office
   for the web. Their views, tabs and comments keep working; nothing else loads.
+- **One front door.** Everything starts from ◎ in the menu bar. The Chrome
+  extension has no controls of its own: its toolbar button opens
+  Ekagrachit's menu, with the current tab already filled in.
 - **Start from anywhere.** The menu preselects what you were just doing (the
   Chrome tab or the window in front); ⌃⌥⌘F focuses the window in front of
   you; `ekagrachit://focus?window=front|app=…|url=…` for Shortcuts, Raycast

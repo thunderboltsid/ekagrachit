@@ -13,10 +13,9 @@ mkdirSync(dist, { recursive: true });
 
 const common = { bundle: true, target: 'chrome120', sourcemap: 'linked', logLevel: 'warning', legalComments: 'none' };
 await build({ ...common, entryPoints: [join(root, 'src/background/index.ts')], outfile: join(dist, 'background.js'), format: 'esm' });
-await build({ ...common, entryPoints: [join(root, 'src/ui/popup.ts')], outfile: join(dist, 'popup.js'), format: 'iife' });
 await build({ ...common, entryPoints: [join(root, 'src/ui/later.ts')], outfile: join(dist, 'later.js'), format: 'iife' });
 
-for (const f of ['popup.html', 'popup.css', 'later.html', 'later.css']) cpSync(join(root, 'src/ui', f), join(dist, f));
+for (const f of ['app.html', 'base.css', 'later.html', 'later.css']) cpSync(join(root, 'src/ui', f), join(dist, f));
 cpSync(join(root, 'assets/icons'), join(dist, 'icons'), { recursive: true });
 const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
 writeFileSync(join(dist, 'manifest.json'), JSON.stringify(manifest, null, 2));

@@ -15,3 +15,5 @@ footer.name a { color: var(--muted); }
 footer.name blockquote { margin: 10px 0 10px; padding-left: 12px; border-left: 2px solid var(--lamp, #f2a33a); }
 footer.name blockquote p { margin: 0; font-style: italic; }
 footer.name cite { display: block; text-align: right; font-style: normal; font-size: 11px; }
+a.button { display: inline-block; text-decoration: none; }
+section p { max-width: 52ch; line-height: 1.5; }
