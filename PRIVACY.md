@@ -10,6 +10,7 @@ analytics and no telemetry, and it makes no network requests of its own.
 | The current session: target URL (or, for an app window, the app and the window's title), deadline, focus window/tab ids, links you reached for | `chrome.storage.local` (extension) and `~/Library/Application Support/Ekagrachit/session.json` (app) | The session ends |
 | "Saved for later" links from your last session | `chrome.storage.local` | You press **Clear**, or 7 days |
 | Settings (duration, overlay style, Shortcut names, sound) | macOS user defaults | You change them / uninstall |
+| Focused minutes per day (dates and durations only, not what you focused on), for "Today: 1 h 15 min focused" in the menu | macOS user defaults | 90 days |
 
 No browsing history is recorded. Pages you visit outside a focus session are
 never seen or stored.

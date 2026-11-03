@@ -436,6 +436,15 @@ final class FocusSessionCoordinator: ObservableObject {
 
     /// Captured when a session starts (the session is cleared by the time it ends).
     private var lastSessionMinutes = 0
+    /// Wall-clock start and planned end of the running session, and its app target (for the ledger and the end toast).
+    private var sessionSpan: (start: TimeInterval, end: TimeInterval, app: NativeWindowTarget?)?
+    /// Focused time per day, kept locally (dates and durations only).
+    @Published private(set) var ledger: FocusLedger = {
+        guard let data = UserDefaults.standard.data(forKey: "focusLedger"),
+              let l = try? JSONDecoder().decode(FocusLedger.self, from: data) else { return FocusLedger() }
+        return l
+    }()
+    var ledgerSummary: String? { ledger.summary(on: Date(), calendar: .current) }
 
     private func perform(_ effect: MachineEffect) {
         switch effect {
@@ -473,18 +482,42 @@ final class FocusSessionCoordinator: ObservableObject {
             store.clear()
         case .sessionStarted:
             lastSessionMinutes = sessionMinutes
+            sessionSpan = machine.session.map { (start: $0.startedAt, end: $0.deadline.wall, app: $0.app) }
             closeMenuWindow()
             runShortcut(settings.startShortcut)
         case let .sessionEnded(reason):
             runShortcut(settings.endShortcut)
+            let span = sessionSpan
+            sessionSpan = nil
+            if let span, [EndReason.expired, .userEnded, .extensionEnded].contains(reason) {
+                let now = Date()
+                let focused = max(0, min(now.timeIntervalSince1970, span.end) - span.start)
+                ledger.record(seconds: focused, endedAt: now, calendar: .current)
+                if let data = try? JSONEncoder().encode(ledger) { UserDefaults.standard.set(data, forKey: "focusLedger") }
+            }
             if reason == .expired {
                 let minutes = lastSessionMinutes
-                toast.show(minutes > 0 ? "Session complete · \(minutes) minutes of one-pointed attention" : "Session complete")
+                var text = "Session complete"
+                if minutes > 0 {
+                    if let app = span?.app {
+                        let title = app.title.count > 40 ? String(app.title.prefix(39)) + "…" : app.title
+                        let what = title.isEmpty ? app.appName : title
+                        text += " · \(minutes) minutes with \(what)"
+                    } else {
+                        text += " · \(minutes) minutes of one-pointed attention"
+                    }
+                }
+                let today = ledger.seconds(on: Date(), calendar: .current)
+                if today > minutes * 60 + 60 { text += " · \(FocusLedger.format(seconds: today)) today" }
+                toast.show(text, for: 5)
                 if settings.playEndSound { NSSound(named: "Glass")?.play() }
             }
             switch reason {
             case .expired, .userEnded: message = nil
-            case .startFailed: message = message ?? "The focus window could not be set up. Is the Chrome extension enabled?"
+            case .startFailed:
+                message = message ?? (span?.app != nil
+                    ? "That window couldn't be found. Is it still open?"
+                    : "The focus window could not be set up. Is the Chrome extension enabled?")
             case .recoveryFailed: message = "The previous session could not be restored and was ended."
             case .extensionEnded: message = nil
             case .degradedTimeout: message = "The focus window could not be restored, so the session was ended."

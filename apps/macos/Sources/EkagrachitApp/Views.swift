@@ -42,10 +42,16 @@ struct MenuContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("EKAGRACHIT")
-                .font(.system(size: 12, weight: .semibold))
-                .tracking(3)
-                .frame(maxWidth: .infinity, alignment: .center)
+            VStack(spacing: 3) {
+                Text("EKAGRACHIT")
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(3)
+                if coordinator.phase == .idle, let summary = coordinator.ledgerSummary {
+                    Text(summary).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityLabel(summary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
             switch coordinator.phase {
             case .idle where coordinator.waitingForChrome:
                 HStack(spacing: 8) {
