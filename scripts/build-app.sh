@@ -22,6 +22,15 @@ cp "$BIN/Ekagrachit" "$APP/Contents/MacOS/Ekagrachit"
 cp "$BIN/ekagrachit-host" "$APP/Contents/MacOS/ekagrachit-host"
 cp "$PKG/Resources/Info.plist" "$APP/Contents/Info.plist"
 
+# App icon: render the iconset from the 1024 px master.
+ICONSET="${PKG:?}/build/AppIcon.iconset"
+rm -rf "${ICONSET:?}" && mkdir -p "$ICONSET"
+for s in 16 32 128 256 512; do
+  sips -z "$s" "$s" "$PKG/Resources/AppIcon-1024.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+  sips -z "$((s * 2))" "$((s * 2))" "$PKG/Resources/AppIcon-1024.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+
 # The Chrome extension ships inside the app; at launch the app copies it to
 # ~/Library/Application Support/Ekagrachit/Chrome Extension for Chrome to load.
 EXT="${ROOT:?}/extensions/chrome/dist"

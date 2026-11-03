@@ -223,7 +223,19 @@ struct SettingsView: View {
             Section("General") {
                 Toggle("Open at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, on in settings.launchAtLogin = on }
+                Toggle("Play a sound when a session ends", isOn: $settings.playEndSound)
                 LabeledContent("Emergency exit", value: HotKey.emergencyDisplay)
+            }
+            Section("About") {
+                LabeledContent("Version", value: (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "dev")
+                LabeledContent("Chrome extension", value: coordinator.extensionVersion ?? "not connected")
+                HStack {
+                    Link("Check for updates", destination: URL(string: "https://github.com/thunderboltsid/ekagrachit/releases")!)
+                    Spacer()
+                    Link("Privacy", destination: URL(string: "https://github.com/thunderboltsid/ekagrachit/blob/main/PRIVACY.md")!)
+                    Spacer()
+                    Link("Help", destination: URL(string: "https://github.com/thunderboltsid/ekagrachit/blob/main/docs/installation.md#troubleshooting")!)
+                }
             }
         }
         .formStyle(.grouped)
@@ -241,10 +253,13 @@ struct SetupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 4) {
                 Text("Set up Ekagrachit").font(.title2.weight(.semibold))
                 Text("Two things are needed before your first focus session.")
                     .foregroundStyle(.secondary)
+                }
             }
             step(done: coordinator.extensionConnected,
                  title: "Chrome extension connected",

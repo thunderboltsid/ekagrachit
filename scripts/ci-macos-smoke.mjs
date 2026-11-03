@@ -128,3 +128,21 @@ if (appProc.exitCode !== null) fail('app died after host disconnect');
 done = true;
 cleanup();
 console.log('SMOKE OK');
+
+// Appearance captures for review: Settings (light), setup + Settings (dark).
+if (process.env.EK_ARTIFACTS) {
+  for (const [name, args, extra] of [
+    ['00c-settings-light', [], { EKAGRACHIT_NO_SETUP_WINDOW: '1' }],
+    ['00d-setup-settings-dark', ['-AppleInterfaceStyle', 'Dark'], {}],
+  ]) {
+    const dir = mkdtempSync(join(tmpdir(), 'ek-shot-'));
+    const p = spawn(join(app, 'Contents/MacOS/Ekagrachit'), args, {
+      env: { ...process.env, EKAGRACHIT_SUPPORT_DIR: dir, EKAGRACHIT_SOCKET: join(dir, 'b.sock'), EKAGRACHIT_NO_HOST_REGISTRATION: '1', EKAGRACHIT_OPEN_SETTINGS: '1', ...extra },
+      stdio: 'ignore',
+    });
+    await new Promise((r) => setTimeout(r, 6500));
+    await new Promise((r) => spawn('screencapture', ['-x', join(process.env.EK_ARTIFACTS, `${name}.png`)]).on('exit', r));
+    p.kill();
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
