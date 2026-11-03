@@ -60,8 +60,11 @@ the one-pointed mind, "a lamp sheltered from the wind." [What the name means →
 - **Robust.** Survives sleep, browser and app restarts. Changing the clock
   can't extend a session. Pages with unsaved changes are never closed without
   asking.
-- **Private.** Everything stays on your Mac: no account, no telemetry, no
-  network requests. Page and window contents are never read.
+- **Private.** Everything stays on your Mac: no account, no telemetry.
+  Page and window contents are never read. The only network request is the
+  update check (below), which you can turn off.
+- **Keeps itself up to date.** New versions download in the background, are
+  checked against the release signature, and install between sessions.
 
 | Start | Saved for later | End early |
 |---|---|---|

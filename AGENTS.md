@@ -15,3 +15,5 @@
   claim desktop behaviour was verified without a real Mac (see docs/testing.md).
 - Shell scripts: guard every `rm` path with `${VAR:?}`.
 - No telemetry, no network calls, no reading document contents, no private APIs.
+  The single exception is the update check (`Updater.swift`): HTTPS to this
+  repository's GitHub releases, no identifiers, off with one setting.

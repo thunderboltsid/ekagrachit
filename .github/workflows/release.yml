@@ -70,6 +70,20 @@ jobs:
           # The tag is the source of truth: stamp it into the manifest, app
           # bundle and host so they can never disagree with the release.
           scripts/set-version.sh "${TAG#v}"
+      - name: Build in the update key
+        if: env.SKIP != '1'
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          # The app trusts updates signed by this key (its public half). Without
+          # the secret the build has no key and never updates itself.
+          if [[ -z "$UPDATE_SIGNING_KEY" ]]; then
+            echo "::warning::UPDATE_SIGNING_KEY is not set: $TAG will not update itself or be offered as an automatic update. Run scripts/release/new-update-key.sh once."
+            exit 0
+          fi
+          PUB="$(swift scripts/release/update-key.swift public)"
+          /usr/libexec/PlistBuddy -c "Set :EKUpdatePublicKey $PUB" apps/macos/Resources/Info.plist
+          echo "UPDATE_PUBLIC_KEY=$PUB" >> "$GITHUB_ENV"
       - name: Test core
         if: env.SKIP != '1'
         working-directory: apps/macos
@@ -87,7 +101,24 @@ jobs:
           test -f "$MNT/Ekagrachit.app/Contents/Resources/ChromeExtension/manifest.json"
           V=$(defaults read "$MNT/Ekagrachit.app/Contents/Info.plist" CFBundleShortVersionString)
           [[ "v$V" == "$TAG" ]] || { echo "app says $V, release is $TAG"; exit 1; }
+          K=$(/usr/libexec/PlistBuddy -c "Print :EKUpdatePublicKey" "$MNT/Ekagrachit.app/Contents/Info.plist")
+          [[ "$K" == "${UPDATE_PUBLIC_KEY:-}" ]] || { echo "app's update key doesn't match the release key"; exit 1; }
           hdiutil detach "$MNT"
+      - name: Sign the update
+        if: env.SKIP != '1' && env.UPDATE_PUBLIC_KEY != ''
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          REPO: ${{ github.repository }}
+        run: |
+          V="${TAG#v}"
+          ZIP="dist/Ekagrachit-$V.zip"
+          SIG="$(swift scripts/release/update-key.swift sign "$ZIP")"
+          SHA="$(shasum -a 256 "$ZIP" | cut -d' ' -f1)"
+          node -e '
+            const [v, url, sha, sig] = process.argv.slice(1);
+            process.stdout.write(JSON.stringify({ version: v, url, sha256: sha, signature: sig, minimumSystemVersion: "26.0.0" }, null, 2) + "\n");
+          ' "$V" "https://github.com/$REPO/releases/download/$TAG/Ekagrachit-$V.zip" "$SHA" "$SIG" > dist/update.json
+          cat dist/update.json
       - uses: actions/upload-artifact@v4
         if: env.SKIP != '1'
         with:

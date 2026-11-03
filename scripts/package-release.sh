@@ -3,6 +3,7 @@
 #   Ekagrachit-<v>.dmg                    app + Applications shortcut
 #   ekagrachit-chrome-extension-<v>.zip   unpacked extension (sideload / "Load unpacked")
 #   ekagrachit-chrome-web-store-<v>.zip   upload for the Chrome Web Store (no "key" field)
+#   Ekagrachit-<v>.zip                    the app alone (automatic updates download this)
 #   SHA256SUMS
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,6 +22,9 @@ cp -R apps/macos/build/Ekagrachit.app "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "Ekagrachit $V" -srcfolder "$STAGE" -ov -format UDZO -fs APFS "$OUT/Ekagrachit-$V.dmg" >/dev/null
 rm -rf "${STAGE:?}"
+
+# The app alone, for automatic updates (unpacked and verified by the app).
+ditto -c -k --keepParent apps/macos/build/Ekagrachit.app "$OUT/Ekagrachit-$V.zip"
 
 # Extension zips.
 (cd extensions/chrome/dist && zip -qr -X "$OUT/ekagrachit-chrome-extension-$V.zip" . -x '*.map')

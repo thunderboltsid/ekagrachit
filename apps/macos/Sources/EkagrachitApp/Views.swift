@@ -236,6 +236,8 @@ struct MenuContentView: View {
                     Button("Settings…") { NotificationCenter.default.post(name: AppDelegate.showSettingsNotification, object: nil) }
                         .keyboardShortcut(",")
                     Button("About Ekagrachit") { NotificationCenter.default.post(name: AppDelegate.showAboutNotification, object: nil) }
+                    Button("Check for Updates…") { coordinator.updater.check(userInitiated: true) }
+                        .disabled(!coordinator.updater.isAvailable)
                     Divider()
                     Button("Quit Ekagrachit") { NSApp.terminate(nil) }
                         .keyboardShortcut("q")
@@ -356,6 +358,11 @@ struct SettingsView: View {
                 Toggle("Open at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, on in settings.launchAtLogin = on }
                 Toggle("Play a sound when a session ends", isOn: $settings.playEndSound)
+                Toggle(isOn: $settings.autoUpdate) {
+                    Text("Update automatically")
+                    Text("Checks GitHub for a new version a few times a day and installs it between sessions.")
+                }
+                .disabled(!coordinator.updater.isAvailable)
                 LabeledContent("Focus the window in front", value: HotKey.quickStartDisplay)
                 LabeledContent("Emergency exit", value: HotKey.emergencyDisplay)
             }

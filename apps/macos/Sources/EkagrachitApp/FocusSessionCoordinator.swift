@@ -25,6 +25,7 @@ final class AppSettings: ObservableObject {
     @Published var overlayStyle: OverlayStyle { didSet { d.set(overlayStyle.rawValue, forKey: "overlayStyle") } }
     @Published var defaultMinutes: Int { didSet { d.set(defaultMinutes, forKey: "defaultMinutes") } }
     @Published var playEndSound: Bool { didSet { d.set(playEndSound, forKey: "playEndSound") } }
+    @Published var autoUpdate: Bool { didSet { d.set(autoUpdate, forKey: "autoUpdate") } }
 
     init() {
         startShortcut = d.string(forKey: "startShortcut") ?? ""
@@ -33,6 +34,7 @@ final class AppSettings: ObservableObject {
         let m = d.integer(forKey: "defaultMinutes")
         defaultMinutes = m > 0 ? m : 25
         playEndSound = d.object(forKey: "playEndSound") as? Bool ?? true
+        autoUpdate = d.object(forKey: "autoUpdate") as? Bool ?? true
     }
 
     var launchAtLogin: Bool {
@@ -120,6 +122,14 @@ final class FocusSessionCoordinator: ObservableObject {
 
     func start() {
         registerHostAndExtension()
+        updater.isEnabled = { [weak self] in self?.settings.autoUpdate ?? false }
+        updater.canInstallNow = { [weak self] in
+            guard let self else { return false }
+            return machine.phase == .idle && !waitingForChrome && visibleMenuWindow == nil
+                && Date().timeIntervalSince(lastSessionEnd) > 60
+        }
+        updater.notify = { [weak self] text in self?.toast.show(text, for: 5) }
+        updater.start(checkSoon: ProcessInfo.processInfo.environment["EKAGRACHIT_UPDATE_CHECK_NOW"] == "1")
         overlays.style = settings.overlayStyle
         settings.$overlayStyle.sink { [weak self] s in self?.overlays.style = s }.store(in: &cancellables)
         overlays.onClick = { [weak self] in self?.refocus(force: true) }
@@ -534,6 +544,9 @@ final class FocusSessionCoordinator: ObservableObject {
 
     /// Captured when a session starts (the session is cleared by the time it ends).
     private var lastSessionMinutes = 0
+    /// When the last session ended; updates wait a while after one.
+    private var lastSessionEnd = Date.distantPast
+    let updater = Updater()
     /// Wall-clock start and planned end of the running session, and its app target (for the ledger and the end toast).
     private var sessionSpan: (start: TimeInterval, end: TimeInterval, app: NativeWindowTarget?)?
     /// Focused time per day, kept locally (dates and durations only).
@@ -586,6 +599,7 @@ final class FocusSessionCoordinator: ObservableObject {
             closeMenuWindow()
             runShortcut(settings.startShortcut)
         case let .sessionEnded(reason):
+            lastSessionEnd = Date()
             runShortcut(settings.endShortcut)
             let span = sessionSpan
             sessionSpan = nil
@@ -636,6 +650,7 @@ final class FocusSessionCoordinator: ObservableObject {
 
     private func tick() {
         ticks += 1
+        if ticks % 30 == 0 { updater.installIfPossible() } // a staged update waits for a quiet moment
         checkPendingStart()
         dispatch(.tick)
         if isSessionRunning, ticks % 10 == 0 { sendSync() } // heals anything lost in transit

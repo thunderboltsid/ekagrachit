@@ -1,7 +1,8 @@
 # Privacy
 
 Ekagrachit runs entirely on your Mac. It has no account, no server, no
-analytics and no telemetry, and it makes no network requests of its own.
+analytics and no telemetry. Its only network request is the update check
+described below, which you can turn off.
 
 ## What it stores, where, and for how long
 
@@ -31,6 +32,19 @@ never seen or stored.
   so the window can be found again if its app restarts. They never leave your
   Mac and are not kept after the session.
 - Window *contents* are never read. Ekagrachit does not use screen recording.
+
+## Automatic updates
+With **Update automatically** on (Settings, the default), the app asks GitHub
+for the latest release's `update.json` about a minute after launch and every
+six hours, and downloads the new app archive when there is one. These are
+plain HTTPS requests to `github.com` (which serves release files from
+`objects.githubusercontent.com`) with the user agent `Ekagrachit/<version>`.
+They carry no account, identifier, cookie or information about how you use
+Ekagrachit; GitHub sees an IP address, as with any download. An update is
+installed only if its Ed25519 signature verifies against the release key built
+into the app, and only between focus sessions. Turn it off in Settings and the
+app makes no network requests at all; "Check for Updates…" then checks only
+when you ask.
 
 ## Permissions and why
 

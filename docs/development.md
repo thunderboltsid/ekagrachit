@@ -82,6 +82,21 @@ push to main → CI: extension · Swift on Linux · macOS app + desktop E2E
 - **By hand, if ever needed:** pushing a `vX.Y.Z` tag releases it, and
   running the *Release* workflow with an existing tag rebuilds it and
   re-attaches its files.
+- **Automatic updates.** Each release also carries `Ekagrachit-<v>.zip` (the
+  app alone) and `update.json` (version, archive URL, SHA-256, Ed25519
+  signature). Apps check
+  `releases/latest/download/update.json`, verify the checksum, the signature
+  (against the public key built into them), the bundle id, the version and
+  the code signature, and install between sessions by swapping the bundle
+  and relaunching (`apps/macos/Sources/EkagrachitApp/Updater.swift`).
+  The signing key is the repository secret `UPDATE_SIGNING_KEY`, created once
+  with `scripts/release/new-update-key.sh` on a maintainer's Mac (it goes
+  straight to GitHub, never to disk). The pipeline derives the public key from
+  it and builds it into each app; without the secret, releases still ship but
+  neither update themselves nor are offered as updates. Builds outside the
+  release pipeline have no key and never update.
+  End-to-end test: `tests/macos/update.test.ts` (a wrongly signed update is
+  refused; a correctly signed one replaces the running app and relaunches).
 - Try it locally: `scripts/release/next-version.sh` and
   `scripts/release/notes.sh "$(scripts/release/next-version.sh)"`.
 
