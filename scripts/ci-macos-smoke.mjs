@@ -133,7 +133,7 @@ console.log('SMOKE OK');
 if (process.env.EK_ARTIFACTS) {
   for (const [name, args, extra] of [
     ['00c-settings-light', [], { EKAGRACHIT_NO_SETUP_WINDOW: '1' }],
-    ['00d-setup-settings-dark', ['-AppleInterfaceStyle', 'Dark'], {}],
+    ['00d-setup-settings-dark', [], { EKAGRACHIT_APPEARANCE: 'dark' }],
   ]) {
     const dir = mkdtempSync(join(tmpdir(), 'ek-shot-'));
     const p = spawn(join(app, 'Contents/MacOS/Ekagrachit'), args, {

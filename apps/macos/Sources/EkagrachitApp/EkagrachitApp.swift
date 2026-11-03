@@ -13,10 +13,6 @@ struct EkagrachitApp: App {
             MenuBarLabel(coordinator: delegate.coordinator)
         }
         .menuBarExtraStyle(.window)
-
-        Settings {
-            SettingsView(coordinator: delegate.coordinator, settings: delegate.coordinator.settings)
-        }
     }
 }
 
@@ -25,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let coordinator = FocusSessionCoordinator()
 
     private var setupWindow: NSWindow?
+    private var settingsWindow: NSWindow?
+    static let showSettingsNotification = Notification.Name("EkagrachitShowSettings")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu bar app: no Dock icon even when run outside a bundle (swift run).
@@ -33,10 +31,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: FocusSessionCoordinator.showSetupNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.showSetup() }
         }
-        if ProcessInfo.processInfo.environment["EKAGRACHIT_OPEN_SETTINGS"] == "1" { // screenshot hook
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                NSApp.activate()
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        NotificationCenter.default.addObserver(forName: Self.showSettingsNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.showSettings() }
+        }
+        let env = ProcessInfo.processInfo.environment
+        if env["EKAGRACHIT_APPEARANCE"] == "dark" { NSApp.appearance = NSAppearance(named: .darkAqua) } // screenshot hook
+        if env["EKAGRACHIT_OPEN_SETTINGS"] == "1" { // screenshot hook
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                MainActor.assumeIsolated { self?.showSettings() }
             }
         }
         // Give Chrome's extension a moment to connect, then show setup if
@@ -66,6 +68,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate()
         setupWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Settings live in our own window: SwiftUI's Settings scene opens behind
+    /// other apps when the app is menu-bar-only.
+    func showSettings() {
+        if settingsWindow == nil {
+            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            w.title = "Ekagrachit Settings"
+            w.isReleasedWhenClosed = false
+            w.contentView = NSHostingView(rootView: SettingsView(coordinator: coordinator, settings: coordinator.settings))
+            w.center()
+            settingsWindow = w
+        }
+        NSApp.activate()
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
