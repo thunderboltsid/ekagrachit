@@ -64,7 +64,10 @@ Starting a session, end to end:
 `shared/identity.ts` (pure, unit tested) maps a URL to an identity:
 Google Docs/Sheets/Slides/Forms/Drawings/Drive files by document ID (any
 `/edit`, `/view`, `?tab=`, `#heading`, `/u/N/`, `/a/domain/` variant), GitHub
-PR/issue by owner/repo/number (PR sub-tabs allowed), Jira issue by key, and
+PR/issue by owner/repo/number (PR sub-tabs allowed), Jira issue by key, a
+registry of web apps by their stable resource id (Notion page, Figma file,
+Linear issue, Confluence page, GitLab MR/issue on any host, Bitbucket PR, Miro
+board, Overleaf project, Colab notebook, Microsoft 365 `sourcedoc`), and
 everything else as an exact page (scheme family, host, port, path modulo
 trailing slash, query as an order-insensitive multiset minus tracking params,
 fragment ignored). No domain wildcards. Credentials in URLs are rejected.

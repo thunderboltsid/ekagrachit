@@ -24,6 +24,7 @@ export type Identity =
   | { kind: 'google'; docId: string; published: boolean; label: string }
   | { kind: 'github'; owner: string; repo: string; section: 'pull' | 'discussions'; number: string }
   | { kind: 'jira'; host: string; issueKey: string }
+  | { kind: 'service'; service: ServiceName; host: string; id: string }
   | { kind: 'page'; allowHttp: boolean; host: string; port: string; path: string; query: string };
 
 export type Verdict = 'allow' | 'auth' | 'neutral' | 'deny';
@@ -56,6 +57,186 @@ const SERVICE_LABELS: Record<string, string> = {
   drawings: 'Google Drawing',
   file: 'Google Drive file',
 };
+
+// ---------------------------------------------------------------------------
+// Web apps recognised by a stable resource id. Each entry says how to read the
+// id from a URL, which top-level URLs belong to the same resource (DNR allow
+// patterns, a superset the matcher then narrows), and the sign-in pages the
+// resource may bounce through.
+// ---------------------------------------------------------------------------
+
+export type ServiceName =
+  | 'notion' | 'figma' | 'linear' | 'confluence' | 'gitlab' | 'bitbucket' | 'miro' | 'overleaf' | 'colab' | 'm365';
+
+interface ServiceDef {
+  label: string;
+  /** Resource id (and canonical host) for a URL of this service, or null. */
+  match(url: URL, host: string): { host: string; id: string } | null;
+  allow(host: string, id: string): AllowPattern[];
+  isAuth(url: URL, host: string, resourceHost: string): boolean;
+  authPatterns(resourceHost: string): AllowPattern[];
+}
+
+const GOOGLE_AUTH: AllowPattern = { regex: '^https://accounts\\.google\\.com/.*', caseSensitive: false };
+const MS_AUTH: AllowPattern = { regex: '^https://login\\.(microsoftonline\\.com|live\\.com)/.*', caseSensitive: false };
+const ATLASSIAN_AUTH: AllowPattern = { regex: '^https://(id|auth)\\.atlassian\\.com/.*', caseSensitive: false };
+const isGoogleAuth = (h: string) => h === 'accounts.google.com';
+const isAtlassianAuth = (h: string) => h === 'id.atlassian.com' || h === 'auth.atlassian.com';
+const TAIL = '([/?#].*)?$';
+
+const SERVICES: Record<ServiceName, ServiceDef> = {
+  notion: {
+    label: 'Notion page',
+    match(url, host) {
+      const notion = host === 'notion.so' || host === 'www.notion.so';
+      if (!notion && !host.endsWith('.notion.site')) return null;
+      // …/Page-Title-<32 hex> or …/<uuid with dashes>: the id is the last 32 hex digits.
+      const last = url.pathname.split('/').filter(Boolean).pop() ?? '';
+      const id = /([0-9a-f]{32})$/i.exec(last.replace(/-/g, ''))?.[1]?.toLowerCase();
+      return id ? { host: notion ? 'notion.so' : host, id } : null;
+    },
+    allow: (host, id) => {
+      // Either the bare 32-digit form or the dashed UUID form.
+      const uuid = [id.slice(0, 8), id.slice(8, 12), id.slice(12, 16), id.slice(16, 20), id.slice(20)].join('-?');
+      const origin = host === 'notion.so' ? '(www\\.)?notion\\.so' : escapeRegex(host);
+      return [{ regex: `^https://${origin}/(.*[-/])?${uuid}${TAIL}`, caseSensitive: false }];
+    },
+    isAuth: (url, host) => isGoogleAuth(host) || ((host === 'notion.so' || host === 'www.notion.so') && /^\/(login|loginwithemail|signup)/.test(url.pathname)),
+    authPatterns: () => [GOOGLE_AUTH, { regex: '^https://(www\\.)?notion\\.so/(login|loginwithemail|signup)([/?#].*)?$', caseSensitive: false }],
+  },
+  figma: {
+    label: 'Figma file',
+    match(url, host) {
+      if (host !== 'figma.com' && host !== 'www.figma.com') return null;
+      const m = /^\/(?:file|design|board|proto|slides|deck|jam)\/([A-Za-z0-9]{10,})(?:\/.*)?$/.exec(url.pathname);
+      return m ? { host: 'figma.com', id: m[1]! } : null;
+    },
+    allow: (_h, id) => [{ regex: `^https://(www\\.)?figma\\.com/(file|design|board|proto|slides|deck|jam)/${id}${TAIL}`, caseSensitive: true }],
+    isAuth: (url, host) => isGoogleAuth(host) || ((host === 'figma.com' || host === 'www.figma.com') && url.pathname.startsWith('/login')),
+    authPatterns: () => [GOOGLE_AUTH, { regex: '^https://(www\\.)?figma\\.com/login([/?#].*)?$', caseSensitive: false }],
+  },
+  linear: {
+    label: 'Linear issue',
+    match(url, host) {
+      if (host !== 'linear.app') return null;
+      const m = /^\/([^/]+)\/issue\/([A-Za-z][A-Za-z0-9]*-\d+)(?:\/.*)?$/.exec(url.pathname);
+      return m ? { host, id: `${m[1]!.toLowerCase()}/${m[2]!.toUpperCase()}` } : null;
+    },
+    allow: (_h, id) => {
+      const [ws, key] = id.split('/');
+      return [{ regex: `^https://linear\\.app/${escapeRegex(ws!)}/issue/${escapeRegex(key!)}${TAIL}`, caseSensitive: false }];
+    },
+    isAuth: (url, host) => isGoogleAuth(host) || (host === 'linear.app' && url.pathname.startsWith('/login')),
+    authPatterns: () => [GOOGLE_AUTH, { regex: '^https://linear\\.app/login([/?#].*)?$', caseSensitive: false }],
+  },
+  confluence: {
+    label: 'Confluence page',
+    match(url, host) {
+      if (!host.endsWith('.atlassian.net')) return null;
+      const m = /^\/wiki\/spaces\/[^/]+\/pages\/(\d+)(?:\/.*)?$/.exec(url.pathname);
+      if (m) return { host, id: m[1]! };
+      if (url.pathname === '/wiki/pages/viewpage.action') {
+        const id = url.searchParams.get('pageId');
+        return id && /^\d+$/.test(id) ? { host, id } : null;
+      }
+      return null;
+    },
+    allow: (host, id) => [
+      { regex: `^https://${escapeRegex(host)}/wiki/spaces/[^/]+/pages/${id}${TAIL}`, caseSensitive: true },
+      { regex: `^https://${escapeRegex(host)}/wiki/pages/viewpage\\.action\\?(.*&)?pageId=${id}(&.*)?$`, caseSensitive: true },
+    ],
+    isAuth: (_u, host) => isAtlassianAuth(host),
+    authPatterns: () => [ATLASSIAN_AUTH],
+  },
+  gitlab: {
+    label: 'GitLab',
+    match(url, host) {
+      const m = /^\/(.+?)\/-\/(merge_requests|issues)\/(\d+)(?:\/.*)?$/.exec(url.pathname);
+      return m ? { host, id: `${m[1]!.toLowerCase()}|${m[2]}|${m[3]}` } : null;
+    },
+    allow: (host, id) => {
+      const [project, type, n] = id.split('|');
+      return [{ regex: `^https://${escapeRegex(host)}/${escapeRegex(project!)}/-/${type}/${n}${TAIL}`, caseSensitive: false }];
+    },
+    isAuth: (url, host, resourceHost) => host === resourceHost && url.pathname.startsWith('/users/'),
+    authPatterns: (h) => [{ regex: `^https://${escapeRegex(h)}/users/(sign_in|auth)([/?#].*)?$`, caseSensitive: false }],
+  },
+  bitbucket: {
+    label: 'Bitbucket pull request',
+    match(url, host) {
+      if (host !== 'bitbucket.org') return null;
+      const m = /^\/([^/]+)\/([^/]+)\/pull-requests\/(\d+)(?:\/.*)?$/.exec(url.pathname);
+      return m ? { host, id: `${m[1]!.toLowerCase()}/${m[2]!.toLowerCase()}/${m[3]}` } : null;
+    },
+    allow: (_h, id) => {
+      const [ws, repo, n] = id.split('/');
+      return [{ regex: `^https://bitbucket\\.org/${escapeRegex(ws!)}/${escapeRegex(repo!)}/pull-requests/${n}${TAIL}`, caseSensitive: false }];
+    },
+    isAuth: (url, host) => isAtlassianAuth(host) || (host === 'bitbucket.org' && url.pathname.startsWith('/account/signin')),
+    authPatterns: () => [ATLASSIAN_AUTH, { regex: '^https://bitbucket\\.org/account/signin([/?#].*)?$', caseSensitive: false }],
+  },
+  miro: {
+    label: 'Miro board',
+    match(url, host) {
+      if (host !== 'miro.com') return null;
+      const m = /^\/app\/board\/([^/]+)\/?$/.exec(url.pathname);
+      return m ? { host, id: m[1]! } : null;
+    },
+    allow: (_h, id) => [{ regex: `^https://miro\\.com/app/board/${escapeRegex(id)}/?([?#].*)?$`, caseSensitive: true }],
+    isAuth: (url, host) => isGoogleAuth(host) || (host === 'miro.com' && /^\/(login|sso)/.test(url.pathname)),
+    authPatterns: () => [GOOGLE_AUTH, { regex: '^https://miro\\.com/(login|sso)([/?#].*)?$', caseSensitive: false }],
+  },
+  overleaf: {
+    label: 'Overleaf project',
+    match(url, host) {
+      if (host !== 'www.overleaf.com' && host !== 'overleaf.com') return null;
+      const m = /^\/project\/([0-9a-f]{24})(?:\/.*)?$/.exec(url.pathname);
+      return m ? { host: 'www.overleaf.com', id: m[1]! } : null;
+    },
+    allow: (_h, id) => [{ regex: `^https://(www\\.)?overleaf\\.com/project/${id}${TAIL}`, caseSensitive: true }],
+    isAuth: (url, host) => isGoogleAuth(host) || ((host === 'www.overleaf.com' || host === 'overleaf.com') && url.pathname.startsWith('/login')),
+    authPatterns: () => [GOOGLE_AUTH, { regex: '^https://(www\\.)?overleaf\\.com/login([/?#].*)?$', caseSensitive: false }],
+  },
+  colab: {
+    label: 'Colab notebook',
+    match(url, host) {
+      if (host !== 'colab.research.google.com') return null;
+      const m = /^\/drive\/([A-Za-z0-9_-]+)\/?$/.exec(url.pathname);
+      return m ? { host, id: m[1]! } : null;
+    },
+    allow: (_h, id) => [{ regex: `^https://colab\\.research\\.google\\.com/drive/${id}/?([?#].*)?$`, caseSensitive: true }],
+    isAuth: (_u, host) => isGoogleAuth(host),
+    authPatterns: () => [GOOGLE_AUTH],
+  },
+  m365: {
+    label: 'Microsoft 365 document',
+    match(url, host) {
+      let raw: string | null = null;
+      if (host.endsWith('.sharepoint.com')) raw = url.searchParams.get('sourcedoc');
+      else if (host === 'onedrive.live.com') raw = url.searchParams.get('resid');
+      const id = raw?.replace(/[{}]/g, '').toLowerCase();
+      return id && /^[0-9a-z!-]{8,}$/.test(id) ? { host, id } : null;
+    },
+    allow: (host, id) => [{
+      regex: `^https://${escapeRegex(host)}/.*[?&](sourcedoc|resid)=(%7b|\\{)?${escapeRegex(id).replace(/!/g, '(!|%21)')}`,
+      caseSensitive: false,
+    }],
+    isAuth: (_u, host) => host === 'login.microsoftonline.com' || host === 'login.live.com',
+    authPatterns: () => [MS_AUTH],
+  },
+};
+
+/** Ordered: specific services first; gitlab (any host) last. */
+const SERVICE_ORDER: ServiceName[] = ['notion', 'figma', 'linear', 'confluence', 'bitbucket', 'miro', 'overleaf', 'colab', 'm365', 'gitlab'];
+
+function serviceIdentity(url: URL, host: string): Identity | null {
+  if (url.protocol !== 'https:' || url.port !== '') return null;
+  for (const name of SERVICE_ORDER) {
+    const m = SERVICES[name].match(url, host);
+    if (m) return { kind: 'service', service: name, host: m.host, id: m.id };
+  }
+  return null;
+}
 
 /** Parse a user-entered target. Adds https:// when the scheme is omitted. */
 export function parseTarget(input: string): ParseResult {
@@ -97,6 +278,8 @@ export function identityOf(url: URL): Identity {
       const m = JIRA_PATH.exec(url.pathname);
       if (m) return { kind: 'jira', host, issueKey: m[1]! };
     }
+    const svc = serviceIdentity(url, host);
+    if (svc) return svc;
   }
   return {
     kind: 'page',
@@ -161,6 +344,10 @@ export function sameResource(identity: Identity, rawUrl: string): boolean {
       const m = JIRA_PATH.exec(url.pathname);
       return m !== null && m[1] === identity.issueKey;
     }
+    case 'service': {
+      const m = url.protocol === 'https:' && url.port === '' ? SERVICES[identity.service].match(url, host) : null;
+      return m !== null && m.host === identity.host && m.id === identity.id;
+    }
     case 'page': {
       if (url.protocol === 'http:' && !identity.allowHttp) return false;
       return (
@@ -185,6 +372,8 @@ export function isAuthUrl(identity: Identity, rawUrl: string): boolean {
       return host === 'github.com' && /^\/(login|session|sessions)(\/.*)?$/.test(url.pathname);
     case 'jira':
       return host === 'id.atlassian.com' || host === 'auth.atlassian.com';
+    case 'service':
+      return SERVICES[identity.service].isAuth(url, host, identity.host);
     case 'page':
       return false;
   }
@@ -208,8 +397,28 @@ export function describe(identity: Identity): string {
       return `${identity.owner}/${identity.repo} #${identity.number}`;
     case 'jira':
       return `${identity.issueKey}`;
+    case 'service':
+      return describeService(identity.service, identity.id);
     case 'page':
       return `${identity.host}${identity.port ? `:${identity.port}` : ''}${identity.path}`;
+  }
+}
+
+function describeService(service: ServiceName, id: string): string {
+  const label = SERVICES[service].label;
+  switch (service) {
+    case 'linear':
+      return id.split('/')[1]!;
+    case 'gitlab': {
+      const [project, type, n] = id.split('|');
+      return `${project} ${type === 'issues' ? '#' : '!'}${n}`;
+    }
+    case 'bitbucket': {
+      const [ws, repo, n] = id.split('/');
+      return `${ws}/${repo} #${n}`;
+    }
+    default:
+      return label;
   }
 }
 
@@ -265,6 +474,8 @@ export function allowPatterns(identity: Identity): AllowPattern[] {
       return [
         { regex: `^https://${escapeRegex(identity.host)}/browse/${escapeRegex(identity.issueKey)}${tail}`, caseSensitive: true },
       ];
+    case 'service':
+      return SERVICES[identity.service].allow(identity.host, identity.id);
     case 'page': {
       const scheme = identity.allowHttp ? 'https?' : 'https';
       const port = identity.port ? `:${identity.port}` : '';
@@ -290,6 +501,8 @@ export function authPatterns(identity: Identity): AllowPattern[] {
       return [{ regex: '^https://github\\.com/(login|session|sessions)([/?#].*)?$', caseSensitive: false }];
     case 'jira':
       return [{ regex: '^https://(id|auth)\\.atlassian\\.com/.*', caseSensitive: false }];
+    case 'service':
+      return SERVICES[identity.service].authPatterns(identity.host);
     case 'page':
       return [];
   }

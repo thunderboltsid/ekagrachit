@@ -113,7 +113,13 @@ export function parkUrl(list: string[], rawUrl: string, policy: FocusPolicy, max
 
 /** "Design review - Google Docs" -> "Design review". */
 export function cleanTitle(raw: string): string {
-  return raw.replace(/\s+[-–—]\s+(Google (Docs|Sheets|Slides|Forms|Drawings|Drive)|Jira|GitHub)$/i, '').trim().slice(0, 120);
+  return raw
+    .replace(
+      /\s+[-–—|]\s+(Google (Docs|Sheets|Slides|Forms|Drawings|Drive)|Jira|GitHub|Figma|Notion|Linear|Confluence|GitLab|Bitbucket|Miro|Colab|Overleaf, Online LaTeX Editor|Overleaf|Microsoft (Word|Excel|PowerPoint)( Online)?|Word|Excel|PowerPoint)$/i,
+      '',
+    )
+    .trim()
+    .slice(0, 120);
 }
 
 /**

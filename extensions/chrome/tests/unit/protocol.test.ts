@@ -99,6 +99,9 @@ test('saved for later: only real, new, off-target links are parked', () => {
 test('document titles are shown without the product suffix', () => {
   assert.equal(cleanTitle('Design review - Google Docs'), 'Design review');
   assert.equal(cleanTitle('Q3 plan – Google Sheets'), 'Q3 plan');
+  assert.equal(cleanTitle('Checkout flow – Figma'), 'Checkout flow');
+  assert.equal(cleanTitle('thesis - Overleaf, Online LaTeX Editor'), 'thesis');
+  assert.equal(cleanTitle('Plan.docx - Microsoft Word Online'), 'Plan.docx');
   assert.equal(cleanTitle('Fix race in bridge · Pull Request #12 · org/repo'), 'Fix race in bridge · Pull Request #12 · org/repo');
 });
 

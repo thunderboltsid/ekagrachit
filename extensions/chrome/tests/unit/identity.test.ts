@@ -5,6 +5,7 @@ import {
   type Identity,
   allowPatterns,
   authPatterns,
+  describe,
   evaluate,
   parseTarget,
   sameResource,
@@ -218,4 +219,160 @@ test('DNR allow regexes agree with the matcher', () => {
   const auth = authPatterns(id(DOC_A)).map((p) => new RegExp(p.regex, 'i'));
   assert.ok(auth.some((r) => r.test('https://accounts.google.com/v3/signin/identifier?x')));
   assert.ok(!auth.some((r) => r.test('https://accounts.google.com.evil/')));
+});
+
+// ---------------------------------------------------------------------------
+// Web apps recognised by resource id. For each: URLs of the same resource
+// (matcher AND DNR allow regex accept), and near misses (both reject).
+// ---------------------------------------------------------------------------
+const SERVICE_CASES: { name: string; target: string; same: string[]; other: string[]; label: string }[] = [
+  {
+    name: 'Notion',
+    target: 'https://www.notion.so/acme/Design-Review-0123456789abcdef0123456789abcdef',
+    same: [
+      'https://www.notion.so/acme/Design-Review-0123456789abcdef0123456789abcdef?pvs=4',
+      'https://notion.so/acme/Renamed-Title-0123456789abcdef0123456789abcdef',
+      'https://www.notion.so/0123456789abcdef0123456789abcdef#block',
+      'https://www.notion.so/01234567-89ab-cdef-0123-456789abcdef',
+    ],
+    other: [
+      'https://www.notion.so/acme/Other-fedcba9876543210fedcba9876543210',
+      'https://www.notion.so/acme',
+      'https://www.notion.so.evil.example/0123456789abcdef0123456789abcdef',
+    ],
+    label: 'Notion page',
+  },
+  {
+    name: 'Notion site',
+    target: 'https://acme.notion.site/Handbook-0123456789abcdef0123456789abcdef',
+    same: ['https://acme.notion.site/0123456789abcdef0123456789abcdef'],
+    other: ['https://other.notion.site/Handbook-0123456789abcdef0123456789abcdef'],
+    label: 'Notion page',
+  },
+  {
+    name: 'Figma',
+    target: 'https://www.figma.com/design/AbCdEfGhIjKl123/Checkout?node-id=1-2',
+    same: [
+      'https://www.figma.com/design/AbCdEfGhIjKl123/Checkout?node-id=4-7&t=x',
+      'https://figma.com/file/AbCdEfGhIjKl123/Checkout',
+      'https://www.figma.com/proto/AbCdEfGhIjKl123/Checkout',
+    ],
+    other: ['https://www.figma.com/design/ZzCdEfGhIjKl123/Other', 'https://www.figma.com/files/recent', 'https://www.figma.com/design/abcdefghijkl123/x'],
+    label: 'Figma file',
+  },
+  {
+    name: 'Linear',
+    target: 'https://linear.app/acme/issue/ENG-123/fix-login',
+    same: ['https://linear.app/acme/issue/ENG-123', 'https://linear.app/acme/issue/ENG-123/renamed#comment-1'],
+    other: ['https://linear.app/acme/issue/ENG-1234', 'https://linear.app/acme/team/ENG/active', 'https://linear.app/other/issue/ENG-123'],
+    label: 'ENG-123',
+  },
+  {
+    name: 'Confluence',
+    target: 'https://acme.atlassian.net/wiki/spaces/ENG/pages/123456/Runbook',
+    same: [
+      'https://acme.atlassian.net/wiki/spaces/ENG/pages/123456/Runbook+v2',
+      'https://acme.atlassian.net/wiki/spaces/ENG/pages/123456',
+      'https://acme.atlassian.net/wiki/pages/viewpage.action?pageId=123456',
+    ],
+    other: ['https://acme.atlassian.net/wiki/spaces/ENG/pages/1234567/Other', 'https://acme.atlassian.net/wiki/home', 'https://evil.atlassian.net/wiki/spaces/ENG/pages/123456'],
+    label: 'Confluence page',
+  },
+  {
+    name: 'GitLab',
+    target: 'https://gitlab.com/acme/platform/api/-/merge_requests/42',
+    same: ['https://gitlab.com/acme/platform/api/-/merge_requests/42/diffs', 'https://gitlab.com/Acme/Platform/API/-/merge_requests/42#note_1'],
+    other: ['https://gitlab.com/acme/platform/api/-/merge_requests/421', 'https://gitlab.com/acme/platform/api/-/issues/42', 'https://gitlab.com/acme/platform/api'],
+    label: 'acme/platform/api !42',
+  },
+  {
+    name: 'Self-hosted GitLab',
+    target: 'https://git.example.com/team/repo/-/issues/7',
+    same: ['https://git.example.com/team/repo/-/issues/7?x=1'],
+    other: ['https://gitlab.com/team/repo/-/issues/7', 'https://git.example.com/team/repo/-/issues/8'],
+    label: 'team/repo #7',
+  },
+  {
+    name: 'Bitbucket',
+    target: 'https://bitbucket.org/acme/api/pull-requests/9',
+    same: ['https://bitbucket.org/acme/api/pull-requests/9/diff', 'https://bitbucket.org/acme/api/pull-requests/9/overview'],
+    other: ['https://bitbucket.org/acme/api/pull-requests/90', 'https://bitbucket.org/acme/api/src/main'],
+    label: 'acme/api #9',
+  },
+  {
+    name: 'Miro',
+    target: 'https://miro.com/app/board/uXjVN1a2b3c=/',
+    same: ['https://miro.com/app/board/uXjVN1a2b3c=/?moveToWidget=345', 'https://miro.com/app/board/uXjVN1a2b3c='],
+    other: ['https://miro.com/app/board/uXjVOther=/', 'https://miro.com/app/dashboard/'],
+    label: 'Miro board',
+  },
+  {
+    name: 'Overleaf',
+    target: 'https://www.overleaf.com/project/64a1b2c3d4e5f60718293a4b',
+    same: ['https://www.overleaf.com/project/64a1b2c3d4e5f60718293a4b/detacher', 'https://overleaf.com/project/64a1b2c3d4e5f60718293a4b'],
+    other: ['https://www.overleaf.com/project', 'https://www.overleaf.com/project/64a1b2c3d4e5f60718293a4c'],
+    label: 'Overleaf project',
+  },
+  {
+    name: 'Colab',
+    target: 'https://colab.research.google.com/drive/1aBcD_eF-gHiJ',
+    same: ['https://colab.research.google.com/drive/1aBcD_eF-gHiJ#scrollTo=xyz'],
+    other: ['https://colab.research.google.com/drive/1aBcD_eF-gHiJK', 'https://colab.research.google.com/'],
+    label: 'Colab notebook',
+  },
+  {
+    name: 'SharePoint / Office for the web',
+    target: 'https://acme.sharepoint.com/:w:/r/sites/eng/_layouts/15/Doc.aspx?sourcedoc=%7B1A2B3C4D-0000-1111-2222-333344445555%7D&file=Plan.docx&action=default',
+    same: [
+      'https://acme.sharepoint.com/sites/eng/_layouts/15/Doc.aspx?sourcedoc={1a2b3c4d-0000-1111-2222-333344445555}&action=edit',
+      'https://acme.sharepoint.com/sites/eng/_layouts/15/Doc.aspx?sourcedoc=%7B1A2B3C4D-0000-1111-2222-333344445555%7D&file=Plan.docx&mobileredirect=true',
+    ],
+    other: [
+      'https://acme.sharepoint.com/sites/eng/_layouts/15/Doc.aspx?sourcedoc=%7B9A2B3C4D-0000-1111-2222-333344445555%7D',
+      'https://acme.sharepoint.com/sites/eng',
+      'https://other.sharepoint.com/sites/eng/_layouts/15/Doc.aspx?sourcedoc=%7B1A2B3C4D-0000-1111-2222-333344445555%7D',
+    ],
+    label: 'Microsoft 365 document',
+  },
+];
+
+for (const c of SERVICE_CASES) {
+  test(`${c.name}: same resource across URL variants, nothing else`, () => {
+    const ident = id(c.target);
+    assert.equal(ident.kind, 'service', `${c.target} should be recognised`);
+    assert.equal(describe(ident), c.label);
+    const res = allowPatterns(ident).map((p) => new RegExp(p.regex, p.caseSensitive ? '' : 'i'));
+    const hit = (u: string) => res.some((r) => r.test(new URL(u).href));
+    for (const u of [c.target, ...c.same]) {
+      assert.ok(sameResource(ident, u), `matcher should allow ${u}`);
+      assert.ok(hit(u), `DNR regex should allow ${u}`);
+    }
+    for (const u of c.other) {
+      assert.ok(!sameResource(ident, u), `matcher should deny ${u}`);
+      assert.ok(!hit(u) || !sameResource(ident, u), `guard must deny ${u}`);
+    }
+  });
+}
+
+test('web app sign-in pages are auth, not the resource', () => {
+  const cases: [string, string, string][] = [
+    ['https://www.figma.com/design/AbCdEfGhIjKl123/x', 'https://www.figma.com/login?cont=x', 'https://www.figma.com/files'],
+    ['https://linear.app/acme/issue/ENG-1', 'https://linear.app/login', 'https://linear.app/acme/inbox'],
+    ['https://acme.atlassian.net/wiki/spaces/E/pages/1/x', 'https://id.atlassian.com/login?continue=x', 'https://acme.atlassian.net/jira'],
+    ['https://gitlab.com/a/b/-/issues/1', 'https://gitlab.com/users/sign_in', 'https://gitlab.com/explore'],
+    ['https://acme.sharepoint.com/x/Doc.aspx?sourcedoc=%7B1A2B3C4D-0000-1111-2222-333344445555%7D', 'https://login.microsoftonline.com/common/oauth2', 'https://www.office.com/'],
+    ['https://www.notion.so/0123456789abcdef0123456789abcdef', 'https://accounts.google.com/o/oauth2/auth', 'https://www.notion.so/acme'],
+  ];
+  for (const [target, auth, deny] of cases) {
+    const p = policy(target);
+    assert.equal(evaluate(p, auth), 'auth', auth);
+    assert.ok(authPatterns(p.primary).some((r) => new RegExp(r.regex, 'i').test(auth)), `auth regex ${auth}`);
+    assert.equal(evaluate(p, deny), 'deny', deny);
+  }
+});
+
+test('web app lookalikes stay exact pages', () => {
+  for (const u of ['http://linear.app/acme/issue/ENG-1', 'https://linear.app:8443/acme/issue/ENG-1', 'https://figma.com.evil.example/design/AbCdEfGhIjKl123/x']) {
+    assert.equal(id(u).kind, 'page', u);
+  }
 });
