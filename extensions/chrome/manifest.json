@@ -3,7 +3,7 @@
   "name": "Ekagrachit",
   "short_name": "Ekagrachit",
   "description": "One resource. One focus window. One duration. Everything else waits.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minimum_chrome_version": "120",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5H6D4dhoVoJE+93ole4S7MWJmMY3x8yZTD/yLFvJCi+hbg0HfuBMUk+8tfCj3YS5jHmoNZqk642ivC8NdhfWu4pLcNw2rcBJ99ftL7vBiALf8cXlp5pScp5O0UpWQs/3sJfQe16WKsp5oJ7qXkavfDZS6kvP9/ciuVSGJadtH5VfsTej8HJrx0PJYpnRyMtVqr34pL/spJgojpLBUTb5k7yrykjlL6Re7Z7LWpDn+HeNkl2dt+xqMP+dwcGR8rDLfBVK17DYYKJmvaLEc+ADilaDXuknawyXU+I/VlS1CqIrPX7yIVtmlXsaO7AHHcWPKWKzUnoR30KJSO9z+h18YwIDAQAB",
   "permissions": [
