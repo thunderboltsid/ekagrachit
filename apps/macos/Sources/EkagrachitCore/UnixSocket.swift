@@ -89,6 +89,7 @@ public enum UnixSocket {
         guard fd >= 0 else { return nil }
         setNoSigPipe(fd)
         setCloseOnExec(fd)
+        setSendTimeout(fd, seconds: 2)
         return fd
     }
 
@@ -111,6 +112,14 @@ public enum UnixSocket {
         var one: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
         #endif
+    }
+
+    /// A peer that stops reading (a frozen browser or host) makes blocking
+    /// writes fail after `seconds` instead of stalling the IO queue forever;
+    /// the connection is then closed and the extension reconnects.
+    static func setSendTimeout(_ fd: Int32, seconds: Int) {
+        var tv = timeval(tv_sec: seconds, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
     }
 
     static func setCloseOnExec(_ fd: Int32) {
