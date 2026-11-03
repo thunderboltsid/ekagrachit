@@ -14,7 +14,6 @@ final class ConfirmEndPanel: NSPanel {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 360, height: 168), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         level = confirmLevel
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        hasShadow = true
         isMovableByWindowBackground = true
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
@@ -58,6 +57,8 @@ final class ConfirmEndPanel: NSPanel {
         contentView = glass
         isOpaque = false
         backgroundColor = .clear
+        hasShadow = false // the glass draws its own edge; a window shadow shows square corners
+        setContentSize(root.fittingSize)
     }
 
     override var canBecomeKey: Bool { true }
