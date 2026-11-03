@@ -105,7 +105,7 @@ final class WindowTracker {
             }
             AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
         } else {
-            app.activate(options: [.activateIgnoringOtherApps])
+            app.activate()
         }
     }
 

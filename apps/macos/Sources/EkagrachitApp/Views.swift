@@ -8,9 +8,12 @@ struct MenuBarLabel: View {
     var body: some View {
         if coordinator.phase == .active || coordinator.phase == .degraded {
             let minutes = Int((coordinator.remaining / 60).rounded(.up))
-            Text("◉ \(minutes)m")
-                .monospacedDigit()
-                .accessibilityLabel("Ekagrachit, \(minutes) minutes remaining")
+            HStack(spacing: 3) {
+                Image(systemName: coordinator.phase == .degraded ? "exclamationmark.circle" : "circle.circle.fill")
+                Text("\(minutes)m").monospacedDigit()
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Ekagrachit, \(minutes) minutes remaining")
         } else {
             Image(systemName: "circle.circle")
                 .accessibilityLabel("Ekagrachit")
@@ -18,13 +21,23 @@ struct MenuBarLabel: View {
     }
 }
 
+enum DurationChoice: Hashable {
+    case preset(Int)
+    case custom
+}
+
 struct MenuContentView: View {
     @ObservedObject var coordinator: FocusSessionCoordinator
     @State private var target = ""
-    @State private var minutes = 25
-    @State private var customText = ""
+    @State private var choice: DurationChoice = .preset(25)
+    @State private var customMinutes = 90
     @FocusState private var urlFocused: Bool
     private let presets = [15, 25, 45, 60]
+
+    private var minutes: Int {
+        if case let .preset(m) = choice { return m }
+        return customMinutes
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -48,7 +61,8 @@ struct MenuContentView: View {
         .frame(width: 340)
         .onAppear {
             coordinator.refreshPermissions()
-            minutes = coordinator.settings.defaultMinutes
+            let d = coordinator.settings.defaultMinutes
+            if presets.contains(d) { choice = .preset(d) } else { choice = .custom; customMinutes = d }
             urlFocused = true
         }
     }
@@ -62,28 +76,26 @@ struct MenuContentView: View {
                 .onSubmit(start)
                 .accessibilityLabel("Focus target URL")
             Text("Duration").font(.callout).foregroundStyle(.secondary)
-            HStack(spacing: 6) {
-                ForEach(presets, id: \.self) { m in
-                    Button("\(m)m") {
-                        minutes = m
-                        customText = ""
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(minutes == m && customText.isEmpty ? .accentColor : nil)
-                    .accessibilityAddTraits(minutes == m && customText.isEmpty ? .isSelected : [])
+            Picker("Duration", selection: $choice) {
+                ForEach(presets, id: \.self) { Text("\($0)m").tag(DurationChoice.preset($0)) }
+                Text("Custom").tag(DurationChoice.custom)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if choice == .custom {
+                HStack(spacing: 6) {
+                    TextField("Minutes", value: $customMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 64)
+                        .accessibilityLabel("Custom duration in minutes")
+                    Stepper("Minutes", value: $customMinutes, in: 1...480, step: 5).labelsHidden()
+                    Text("minutes").foregroundStyle(.secondary)
                 }
-                TextField("Custom", text: $customText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 64)
-                    .onChange(of: customText) { v in
-                        if let m = Int(v.filter(\.isNumber)), m > 0 { minutes = m }
-                    }
-                    .accessibilityLabel("Custom duration in minutes")
             }
             Button(action: start) {
-                Text("Start Focus").frame(maxWidth: .infinity)
+                Text("Start Focus · \(minutes) min").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
             .disabled(target.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -110,6 +122,7 @@ struct MenuContentView: View {
                 Label(degradedText, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
             }
             Button("End Session…") { coordinator.requestEnd() }
+                .buttonStyle(.glass)
             Text("Emergency exit: \(HotKey.emergencyDisplay), then hold to confirm.")
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -150,14 +163,8 @@ struct MenuContentView: View {
 
     private var footer: some View {
         HStack {
-            Button("Settings…") {
-                NSApp.activate(ignoringOtherApps: true)
-                if #available(macOS 14, *) {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                } else {
-                    NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                }
-            }
+            SettingsLink { Text("Settings…") }
+                .simultaneousGesture(TapGesture().onEnded { NSApp.activate() })
             Spacer()
             Button("Quit") { NSApp.terminate(nil) }
                 .disabled(coordinator.isSessionRunning)
@@ -168,11 +175,10 @@ struct MenuContentView: View {
     }
 
     private func start() {
-        let m = Int(customText.filter(\.isNumber)) ?? minutes
+        let m = minutes
         if coordinator.startSession(target: target, minutes: m) == nil {
             coordinator.settings.defaultMinutes = m
             target = ""
-            customText = ""
         }
     }
 }
@@ -208,5 +214,70 @@ struct SettingsView: View {
         .frame(width: 460)
         .padding(.vertical, 8)
         .onAppear { launchAtLogin = settings.launchAtLogin }
+    }
+}
+
+/// Setup checklist with live status. Shown at launch when something is missing
+/// (and once on first launch), so a menu-bar-only app never starts silently broken.
+struct SetupView: View {
+    @ObservedObject var coordinator: FocusSessionCoordinator
+    var onDone: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Set up Ekagrachit").font(.title2.weight(.semibold))
+                Text("Two things are needed before your first focus session.")
+                    .foregroundStyle(.secondary)
+            }
+            step(done: coordinator.extensionConnected,
+                 title: "Chrome extension connected",
+                 detail: coordinator.extensionConnected
+                    ? "Version \(coordinator.extensionVersion ?? "?")"
+                    : (coordinator.bridgeError ?? "Load extensions/chrome/dist in chrome://extensions (Developer mode → Load unpacked), with Chrome running.")) {
+                Link("Installation guide", destination: URL(string: "https://github.com/thunderboltsid/ekagrachit/blob/main/docs/installation.md")!)
+            }
+            step(done: coordinator.accessibilityTrusted,
+                 title: "Accessibility permission",
+                 detail: coordinator.accessibilityTrusted
+                    ? "Lets Ekagrachit bring the focus window back when you switch away."
+                    : "Lets Ekagrachit bring the focus window back when you switch away. Nothing else is read or controlled.") {
+                if !coordinator.accessibilityTrusted {
+                    Button("Open System Settings") {
+                        Permissions.requestAccessibility()
+                        Permissions.openAccessibilitySettings()
+                    }
+                }
+            }
+            Divider()
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "circle.circle")
+                Text("Ekagrachit lives in the menu bar. Click it to start a session; \(HotKey.emergencyDisplay) ends one early.")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.callout)
+            HStack {
+                Spacer()
+                Button(coordinator.extensionConnected && coordinator.accessibilityTrusted ? "Done" : "Later", action: onDone)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 440)
+        .onAppear { coordinator.refreshPermissions() }
+    }
+
+    private func step<Accessory: View>(done: Bool, title: String, detail: String, @ViewBuilder accessory: () -> Accessory) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: done ? "checkmark.circle.fill" : "circle.dashed")
+                .font(.title2)
+                .foregroundStyle(done ? Color.green : Color.secondary)
+                .accessibilityLabel(done ? "Done" : "Not done")
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                accessory()
+            }
+        }
     }
 }

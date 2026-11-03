@@ -26,7 +26,7 @@ stopped.
 | Cmd+Q in Chrome | **Possible** — Chrome quits (after its own "hold ⌘Q" warning if enabled). The app goes to *degraded*, covers the screen and ends the session after 120 s if Chrome does not come back. | |
 | Disabling/removing the extension in chrome://extensions | **Possible** (requires reaching that page, which is blocked during a session) | |
 
-## Desktop (macOS) — verified on a macOS 15 runner by `tests/macos/desktop.test.ts`
+## Desktop (macOS) — verified on a macOS 26 runner by `tests/macos/desktop.test.ts`
 Real Ekagrachit.app + real Chromium (Chrome for Testing) + extension + host,
 observed through the window server and checked with screenshot pixels.
 

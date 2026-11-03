@@ -42,7 +42,7 @@ targets.append(
 
 let package = Package(
     name: "Ekagrachit",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS("26.0")], // Tahoe+, Apple Silicon only
     products: products,
     targets: targets
 )

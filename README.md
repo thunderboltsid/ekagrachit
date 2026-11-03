@@ -38,7 +38,7 @@ to work on for the next 45 minutes.
 What is prevented vs. merely reversed vs. still possible is spelled out in
 [docs/limitations.md](docs/limitations.md).
 
-## Install (macOS 13+, Google Chrome, Xcode 15.3+ or Swift 5.10+ toolchain, Node 22.18+)
+## Install (macOS 26 Tahoe+, Apple Silicon, Google Chrome, Xcode 26+, Node 22.18+)
 ```bash
 git clone https://github.com/thunderboltsid/ekagrachit && cd ekagrachit
 scripts/install.sh

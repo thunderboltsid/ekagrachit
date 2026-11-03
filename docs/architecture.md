@@ -162,7 +162,7 @@ requests are no-ops. Fully specified and tested in
 
 ## Implementation status
 
-All items below are verified by automated tests in CI. Linux covers the extension, Chromium and the Swift core; the macOS 15 runner covers the real app, the window server and screenshots.
+All items below are verified by automated tests in CI. Linux covers the extension, Chromium and the Swift core; the macOS 26 runner covers the real app, the window server and screenshots.
 
 | Item | Verified by |
 |---|---|
