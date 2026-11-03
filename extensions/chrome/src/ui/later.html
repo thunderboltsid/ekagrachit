@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Saved for later — Ekagrachit</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="later.css">
+</head>
+<body class="window">
+  <main class="later">
+    <header>
+      <h1>Ekagrachit</h1>
+    </header>
+    <section>
+      <h2 id="heading">Saved for later</h2>
+      <p id="intro" class="hint"></p>
+      <ul id="items"></ul>
+      <p id="empty" class="hint" hidden>Nothing saved. Every link you reach for during a focus session shows up here afterwards.</p>
+      <div class="actions" id="actions">
+        <button id="open-all" type="button" class="primary">Open all</button>
+        <button id="copy" type="button" class="secondary">Copy links</button>
+        <button id="clear" type="button" class="secondary">Clear</button>
+      </div>
+      <p id="status" class="hint" role="status"></p>
+    </section>
+  </main>
+  <script src="later.js"></script>
+</body>
+</html>

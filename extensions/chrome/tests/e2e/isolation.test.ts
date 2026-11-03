@@ -160,6 +160,12 @@ describe('Test A: Google Docs isolation (browser-only mode)', () => {
     assert.equal(win.tabs![0]!.id, s.tabId);
   });
 
+  test('every blocked link is saved for later (same-tab, new tab, typed URL)', async () => {
+    const parked = await inSW(h, async () => ((await chrome.storage.local.get('session')).session as { parked?: string[] }).parked ?? []);
+    for (const u of [DOC_B, JIRA, SLACK]) assert.ok(parked.includes(u), `${u} parked; got ${JSON.stringify(parked)}`);
+    assert.ok(!parked.some((u) => u.includes('DOC_A')), 'the focus document itself is never parked');
+  });
+
   test('Test E: at expiry restrictions lift, only the focus window closes, existing tabs are intact', async () => {
     const s = (await session(h))!;
     await inSW(h, () => (globalThis as any).__ekagrachit.debugSetRemaining(300));
@@ -171,6 +177,12 @@ describe('Test A: Google Docs isolation (browser-only mode)', () => {
       'focus window closed',
     );
     assert.equal(await tabUrl(h, preexistingTabId), 'https://news.example/front', 'pre-existing tab untouched');
+    // The "Saved for later" page opens with what the user reached for.
+    const later = await waitFor(async () => h.ctx.pages().find((p) => p.url().endsWith('/later.html')) ?? null, (p) => p !== null, 5000, 'later page');
+    await later!.waitForSelector('#items li');
+    const hosts = await later!.$$eval('#items .host', (els) => els.map((e) => e.textContent));
+    assert.ok(hosts.includes('acme.atlassian.net') && hosts.includes('app.slack.com'), `later page lists the links: ${hosts}`);
+    if (process.env.EK_SHOTS) await later!.screenshot({ path: `${process.env.EK_SHOTS}/later.png` });
     const rules = await inSW(h, () => chrome.declarativeNetRequest.getSessionRules());
     assert.equal(rules.length, 0, 'all blocking rules removed');
     // Normal browsing works again.

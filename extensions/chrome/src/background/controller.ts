@@ -32,6 +32,8 @@ import {
   type SessionRecord,
   clampDurationMinutes,
   isExpired,
+  cleanTitle,
+  parkUrl,
   reconcile,
   remainingMs,
   tooManyRestores,
@@ -46,6 +48,8 @@ const ALARM_TICK = 'ekagrachit-tick';
 const LANDING_SETTLE_MS = 3_000;
 const LANDING_MAX_MS = 20_000;
 const STARTUP_SETTLE_MS = 4_000;
+const KEY_LATER = 'later';
+const LATER_TTL_MS = 7 * 24 * 3600_000;
 const REFOCUS_THROTTLE_MS = 120;
 
 export interface UiState {
@@ -56,6 +60,7 @@ export interface UiState {
     target: string;
     endsAt: number;
     armed: boolean;
+    parkedCount: number;
   };
   bridge: BridgeStatus;
   bridgeError: string | null;
@@ -179,7 +184,7 @@ export class FocusController {
     const r = this.rec;
     return {
       session: r
-        ? { sid: r.sid, owner: r.owner, title: describe(r.policy.primary), target: r.target, endsAt: r.endsAt, armed: r.armed }
+        ? { sid: r.sid, owner: r.owner, title: r.title || describe(r.policy.primary), target: r.target, endsAt: r.endsAt, armed: r.armed, parkedCount: r.parked?.length ?? 0 }
         : null,
       bridge: this.bridge.status === 'app_connected' && !this.appReady ? 'connecting' : this.bridge.status,
       bridgeError: this.bridge.lastError,
@@ -313,6 +318,22 @@ export class FocusController {
       chrome.windows.remove(rec.windowId).catch(() => undefined);
     }
     this.send({ v: 1, type: 'session_closed', sid: rec.sid, reason });
+    if (rec.parked?.length && reason !== 'replaced' && reason !== 'start_failed') {
+      await chrome.storage.local.set({ [KEY_LATER]: { items: rec.parked, title: rec.title || describe(rec.policy.primary), endedAt: Date.now() } });
+      // Restrictions are already lifted; show what the user reached for.
+      await chrome.windows.create({ url: chrome.runtime.getURL('later.html'), type: 'normal', focused: true, width: 560, height: 520 }).catch(() => undefined);
+    }
+  }
+
+  /** Records a link the user reached for; reports it so the app can say "Saved for later". */
+  private async park(url: string | undefined, kind: ViolationKind): Promise<void> {
+    const rec = this.rec;
+    if (!rec || !url) return;
+    rec.parked ??= [];
+    const host = parkUrl(rec.parked, url, rec.policy);
+    if (host === null) return;
+    await this.save();
+    if (rec.sid) this.send({ v: 1, type: 'violation', sid: rec.sid, kind, host });
   }
 
   private async createFocusWindow(): Promise<void> {
@@ -400,6 +421,16 @@ export class FocusController {
       case 'focus':
         if (this.rec?.sid === msg.sid) await this.refocus(true);
         return;
+      case 'reload':
+        // The app ships a newer copy of this extension; pick it up while idle.
+        if (!this.rec) chrome.runtime.reload();
+        return;
+      case 'active_tab_request': {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true, windowType: 'normal' }).catch(() => []);
+        const url = tab?.url && /^https?:/.test(tab.url) ? tab.url : '';
+        this.send({ v: 1, type: 'active_tab', cid: msg.cid, url });
+        return;
+      }
       case 'sync':
         if (!isNewerSync(this.lastSync, msg)) return; // stale or duplicate
         this.lastSync = { epoch: msg.epoch, seq: msg.seq };
@@ -487,10 +518,15 @@ export class FocusController {
     await this.checkUrl(url, 'navigation_reverted');
   }
 
-  async onNavigationError(tabId: number, frameId: number, error: string): Promise<void> {
+  async onNavigationError(tabId: number, frameId: number, error: string, url?: string): Promise<void> {
     const rec = this.rec;
-    if (!rec || tabId !== rec.tabId || frameId !== 0) return;
-    if (!/ERR_BLOCKED_BY_CLIENT/.test(error)) return;
+    if (!rec || frameId !== 0 || !/ERR_BLOCKED_BY_CLIENT/.test(error)) return;
+    if (tabId !== rec.tabId) {
+      // A load blocked in a tab opened during the session (link to a new tab, Cmd+T + URL…).
+      if (!rec.preexistingTabIds.includes(tabId)) await this.park(url, 'navigation_blocked');
+      return;
+    }
+    await this.park(url, 'navigation_blocked');
     // DNR blocked a disallowed load before any content was fetched; the tab now
     // shows Chrome's "blocked" page. Put the target back.
     await this.restore('navigation_blocked');
@@ -507,6 +543,7 @@ export class FocusController {
       return;
     }
     if (verdict === 'auth' || verdict === 'neutral') return;
+    await this.park(url, kind);
     await this.restore(kind);
   }
 
@@ -542,6 +579,13 @@ export class FocusController {
 
   // ---------------------------------------------------------------- enforcement: tabs & windows
 
+  /** Top-level navigation start in a tab opened during the session: remember where it was going. */
+  async onBeforeNavigate(tabId: number, frameId: number, url: string): Promise<void> {
+    const rec = this.rec;
+    if (!rec || frameId !== 0 || tabId === rec.tabId || rec.preexistingTabIds.includes(tabId)) return;
+    await this.park(url, 'navigation_blocked');
+  }
+
   async onTabCreated(tab: chrome.tabs.Tab): Promise<void> {
     const rec = this.rec;
     if (!rec || this.settling || tab.id === undefined) return;
@@ -549,6 +593,7 @@ export class FocusController {
     if (tab.windowId === this.controlWindowId) return;
     const url = tab.pendingUrl ?? tab.url ?? '';
     if (url.startsWith(chrome.runtime.getURL(''))) return; // our own UI
+    await this.park(url, 'tab_closed');
     // A tab created during the session (Cmd+T, Cmd+N, target=_blank, window.open,
     // reopen-closed-tab...). DNR has already blocked its network load; close it.
     await this.closeTab(tab.id);
@@ -608,6 +653,16 @@ export class FocusController {
       await this.recreateFocusWindow('focus_window_recreated');
     } finally {
       this.rehomingTabId = null;
+    }
+  }
+
+  async onTabTitle(tabId: number, title: string): Promise<void> {
+    const rec = this.rec;
+    if (!rec || tabId !== rec.tabId || !title || /^https?:/.test(title)) return;
+    const t = cleanTitle(title);
+    if (t && t !== rec.title) {
+      rec.title = t;
+      await this.save();
     }
   }
 

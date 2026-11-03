@@ -57,7 +57,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
   const server = new TestServer();
   const support = mkdtempSync('/tmp/ek-mac-');
   const sock = join(support, 'b.sock');
-  const appEnv = { ...process.env, EKAGRACHIT_SUPPORT_DIR: support, EKAGRACHIT_SOCKET: sock, EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY: '1', EKAGRACHIT_NO_SETUP_WINDOW: '1' };
+  const appEnv = { ...process.env, EKAGRACHIT_SUPPORT_DIR: support, EKAGRACHIT_SOCKET: sock, EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY: '1', EKAGRACHIT_NO_SETUP_WINDOW: '1', EKAGRACHIT_NO_HOST_REGISTRATION: '1' };
   let appProc: ChildProcess;
   let h: Harness;
   let env: Env;
@@ -187,6 +187,9 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     execFileSync('open', ['/System/Library/Desktop Pictures']);
     await sleep(2500);
     shot('00a-desktop-before');
+    // The menu offers Chrome's active tab as the target.
+    await h.ctx.pages()[0]!.goto('https://news.example/front');
+    await sleep(500);
     // Click Ekagrachit's menu-bar item (found through Accessibility; on macOS 26
     // menu-bar extras are not windows of the owning app).
     const item = probe<{ x: number; y: number; w: number; h: number; error?: string }>('statusitem', String(appPid()));

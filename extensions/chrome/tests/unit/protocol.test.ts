@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isNewerSync, parseInbound } from '../../src/shared/protocol.ts';
-import { clampDurationMinutes, isExpired, reconcile, tooManyRestores, type SessionRecord } from '../../src/shared/session.ts';
+import { cleanTitle, clampDurationMinutes, isExpired, parkUrl, reconcile, tooManyRestores, type SessionRecord } from '../../src/shared/session.ts';
+import { parseTarget } from '../../src/shared/identity.ts';
 
 const SID = 'abcdef0123456789';
 
@@ -29,6 +30,12 @@ test('valid messages parse', () => {
     type: 'sync', epoch: 'e1', seq: 3, session: { sid: SID, target: 'https://x', remainingMs: 1000, phase: 'active' },
   });
   assert.deepEqual(parseInbound({ type: 'host_status', appConnected: true, hostVersion: '0.1.0' }), { type: 'host_status', appConnected: true, hostVersion: '0.1.0' });
+});
+
+test('v1 additions: reload and active tab requests', () => {
+  assert.deepEqual(parseInbound({ type: 'reload' }), { type: 'reload' });
+  assert.deepEqual(parseInbound({ type: 'active_tab_request', cid: 'c1' }), { type: 'active_tab_request', cid: 'c1' });
+  assert.equal(parseInbound({ type: 'active_tab_request' }), null);
 });
 
 test('Test F: stale sync messages are ignored; a new app epoch resets ordering', () => {
@@ -68,4 +75,29 @@ test('deadlines and limits', () => {
   assert.equal(clampDurationMinutes(Number.NaN), null);
   assert.ok(tooManyRestores([1, 2, 3, 4, 5, 6, 7, 8], 10));
   assert.ok(!tooManyRestores([1, 2, 3], 10));
+});
+
+test('saved for later: only real, new, off-target links are parked', () => {
+  const t = parseTarget('https://docs.google.com/document/d/DOC_A/edit');
+  if (!t.ok) throw new Error();
+  const policy = { primary: t.identity, aliases: [] };
+  const list: string[] = [];
+  assert.equal(parkUrl(list, 'https://acme.atlassian.net/browse/X-1#c', policy), 'acme.atlassian.net');
+  assert.equal(parkUrl(list, 'https://acme.atlassian.net/browse/X-1', policy), null, 'duplicate ignoring fragment');
+  assert.equal(parkUrl(list, 'https://docs.google.com/document/d/DOC_A/edit#h', policy), null, 'the focus document itself');
+  assert.equal(parkUrl(list, 'https://accounts.google.com/x', policy), null, 'sign-in flow');
+  assert.equal(parkUrl(list, 'chrome://newtab/', policy), null);
+  assert.equal(parkUrl(list, 'about:blank', policy), null);
+  assert.equal(parkUrl(list, 'https://u:p@evil.example/', policy), null);
+  assert.equal(parkUrl(list, 'not a url', policy), null);
+  assert.equal(parkUrl(list, 'https://docs.google.com/document/d/DOC_B/edit', policy), 'docs.google.com');
+  assert.deepEqual(list, ['https://acme.atlassian.net/browse/X-1', 'https://docs.google.com/document/d/DOC_B/edit']);
+  const full = Array.from({ length: 3 }, (_, i) => `https://x.example/${i}`);
+  assert.equal(parkUrl(full, 'https://y.example/', policy, 3), null, 'capped');
+});
+
+test('document titles are shown without the product suffix', () => {
+  assert.equal(cleanTitle('Design review - Google Docs'), 'Design review');
+  assert.equal(cleanTitle('Q3 plan – Google Sheets'), 'Q3 plan');
+  assert.equal(cleanTitle('Fix race in bridge · Pull Request #12 · org/repo'), 'Fix race in bridge · Pull Request #12 · org/repo');
 });

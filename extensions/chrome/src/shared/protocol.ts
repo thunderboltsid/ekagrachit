@@ -42,7 +42,9 @@ export type Inbound =
   | { type: 'sync'; epoch: string; seq: number; session: DesiredSession | null }
   | { type: 'focus'; sid: string }
   | { type: 'start_result'; cid: string; ok: boolean; error?: string }
-  | { type: 'error'; code: string; message: string };
+  | { type: 'error'; code: string; message: string }
+  | { type: 'reload' }
+  | { type: 'active_tab_request'; cid: string };
 
 // ----- extension -> app -----------------------------------------------------
 
@@ -59,7 +61,8 @@ export type Outbound =
   | { v: 1; type: 'window_ready'; sid: string; windowId: number; tabId: number; bounds: Bounds; state: WindowState }
   | { v: 1; type: 'window_bounds'; sid: string; windowId: number; bounds: Bounds; state: WindowState }
   | { v: 1; type: 'window_lost'; sid: string }
-  | { v: 1; type: 'violation'; sid: string; kind: ViolationKind }
+  | { v: 1; type: 'violation'; sid: string; kind: ViolationKind; host?: string }
+  | { v: 1; type: 'active_tab'; cid: string; url: string }
   | { v: 1; type: 'session_closed'; sid: string; reason: string }
   | { v: 1; type: 'error'; sid?: string; code: string; message: string };
 
@@ -121,6 +124,12 @@ export function parseInbound(raw: unknown): Inbound | null {
       const code = str(raw.code, 64);
       if (code === null) return null;
       return { type, code, message: str(raw.message, 512) ?? '' };
+    }
+    case 'reload':
+      return { type };
+    case 'active_tab_request': {
+      const cid = str(raw.cid, MAX_SID);
+      return cid === null ? null : { type, cid };
     }
     default:
       return null;

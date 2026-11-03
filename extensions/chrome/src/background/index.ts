@@ -11,12 +11,16 @@ const q = <T>(fn: () => Promise<T>) => void controller.serial(fn);
 chrome.webNavigation.onCommitted.addListener((d) => q(() => controller.onNavigationCommitted(d.tabId, d.frameId, d.url)));
 chrome.webNavigation.onHistoryStateUpdated.addListener((d) => q(() => controller.onSameDocumentNavigation(d.tabId, d.frameId, d.url)));
 chrome.webNavigation.onReferenceFragmentUpdated.addListener((d) => q(() => controller.onSameDocumentNavigation(d.tabId, d.frameId, d.url)));
-chrome.webNavigation.onErrorOccurred.addListener((d) => q(() => controller.onNavigationError(d.tabId, d.frameId, d.error)));
+chrome.webNavigation.onErrorOccurred.addListener((d) => q(() => controller.onNavigationError(d.tabId, d.frameId, d.error, d.url)));
+chrome.webNavigation.onBeforeNavigate.addListener((d) => q(() => controller.onBeforeNavigate(d.tabId, d.frameId, d.url)));
 
 chrome.tabs.onCreated.addListener((tab) => q(() => controller.onTabCreated(tab)));
 chrome.tabs.onRemoved.addListener((tabId, info) => q(() => controller.onTabRemoved(tabId, info.isWindowClosing)));
 chrome.tabs.onDetached.addListener((tabId) => controller.noteTabDetached(tabId));
 chrome.tabs.onAttached.addListener((tabId, info) => q(() => controller.onTabAttached(tabId, info.newWindowId)));
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.title) q(() => controller.onTabTitle(tabId, info.title!));
+});
 chrome.tabs.onReplaced.addListener((added, removed) => q(() => controller.onTabReplaced(added, removed)));
 
 chrome.windows.onFocusChanged.addListener((windowId) => q(() => controller.onWindowFocusChanged(windowId)));

@@ -54,6 +54,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sw_vers && swift --version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build extension
+        working-directory: extensions/chrome
+        run: npm ci && npm run build
       - name: Test core
         working-directory: apps/macos
         run: swift build && swift test
@@ -65,18 +71,13 @@ jobs:
           lipo -info "$APP/Contents/MacOS/Ekagrachit"
           lipo -info "$APP/Contents/MacOS/ekagrachit-host"
           plutil -lint "$APP/Contents/Info.plist"
+          test -f "$APP/Contents/Resources/ChromeExtension/manifest.json"
           # The host must exit cleanly when Chrome closes stdin.
           EKAGRACHIT_SOCKET=/tmp/ek-ci.sock "$APP/Contents/MacOS/ekagrachit-host" chrome-extension://x/ </dev/null
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
       - name: Launch the real app and drive it through the real host
         env:
           EK_ARTIFACTS: ${{ github.workspace }}/desktop-artifacts
         run: mkdir -p desktop-artifacts && node scripts/ci-macos-smoke.mjs apps/macos/build/Ekagrachit.app
-      - name: Build extension
-        working-directory: extensions/chrome
-        run: npm ci && npm run build
       - name: Build desktop test probe
         working-directory: apps/macos
         run: swift build -c release --product ekagrachit-probe

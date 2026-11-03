@@ -2,7 +2,7 @@
  * Extension-side session record and the pure reconciliation function that maps
  * the app's authoritative `sync` onto local actions.
  */
-import type { FocusPolicy } from './identity.ts';
+import { type FocusPolicy, evaluate } from './identity.ts';
 import type { DesiredSession } from './protocol.ts';
 
 export type Owner = 'extension' | 'native';
@@ -22,6 +22,10 @@ export interface SessionRecord {
   /** Wall-clock time after which the session is armed even without a matching commit. */
   armDeadline: number;
   lastAllowedUrl: string;
+  /** Links the user reached for during the session ("saved for later"). Optional for older records. */
+  parked?: string[];
+  /** The focus tab's title (the document's name), for display only. */
+  title?: string;
   /** Tabs that existed when enforcement started; never touched by the guard. */
   preexistingTabIds: number[];
   /** Identifies the browser run in which windowId/tabId are valid. */
@@ -79,4 +83,35 @@ export function clampDurationMinutes(minutes: number): number | null {
 /** Restore-loop breaker: true if too many restores happened recently. */
 export function tooManyRestores(timestamps: readonly number[], now: number, windowMs = 30_000, max = 8): boolean {
   return timestamps.filter((t) => now - t < windowMs).length >= max;
+}
+
+export const MAX_PARKED = 50;
+
+/**
+ * Adds a blocked link to the "saved for later" list. Only http(s) URLs that are
+ * not the focus resource or its sign-in flow are kept; duplicates (ignoring the
+ * fragment) are dropped. Returns the host to show, or null if nothing was added.
+ */
+export function parkUrl(list: string[], rawUrl: string, policy: FocusPolicy, max = MAX_PARKED): string | null {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  if (url.username || url.password) return null;
+  const verdict = evaluate(policy, url.href);
+  if (verdict === 'allow' || verdict === 'auth') return null;
+  url.hash = '';
+  const key = url.href;
+  if (list.some((u) => u.split('#')[0] === key)) return null;
+  if (list.length >= max) return null;
+  list.push(key);
+  return url.hostname;
+}
+
+/** "Design review - Google Docs" -> "Design review". */
+export function cleanTitle(raw: string): string {
+  return raw.replace(/\s+[-–—]\s+(Google (Docs|Sheets|Slides|Forms|Drawings|Drive)|Jira|GitHub)$/i, '').trim().slice(0, 120);
 }
