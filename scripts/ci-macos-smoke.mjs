@@ -42,6 +42,19 @@ while (!existsSync(sock)) {
   await new Promise((r) => setTimeout(r, 200));
 }
 console.log('app started; socket ready');
+// Zero-terminal install: a fresh launch registers the native host with Chrome
+// and syncs the bundled extension to a loadable folder.
+{
+  const { readFileSync } = await import('node:fs');
+  const { homedir } = await import('node:os');
+  const manifestPath = join(homedir(), 'Library/Application Support/Google/Chrome/NativeMessagingHosts/io.github.thunderboltsid.ekagrachit.json');
+  if (!existsSync(manifestPath)) fail('native host manifest was not registered');
+  const m = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  if (m.path !== join(app, 'Contents/MacOS/ekagrachit-host')) fail(`manifest points at ${m.path}`);
+  if (!m.allowed_origins.includes('chrome-extension://dpbpdbflelamfpmehknioljngeaagaeb/')) fail('manifest origin');
+  if (!existsSync(join(support, 'Chrome Extension/manifest.json'))) fail('extension folder not synced');
+  console.log('host registered and extension folder synced');
+}
 // First launch without an extension: the setup window should appear after ~4 s.
 await new Promise((r) => setTimeout(r, 5500));
 if (process.env.EK_ARTIFACTS) {

@@ -50,6 +50,9 @@ async function refresh(): Promise<void> {
     $('title').textContent = state.session.title;
     $('title').title = state.session.target;
     $('remaining').textContent = fmt(state.session.endsAt - Date.now());
+    const n = state.session.parkedCount;
+    $('parked').hidden = n === 0;
+    $('parked').textContent = `${n} link${n === 1 ? '' : 's'} saved for after the session.`;
     const degraded = state.session.owner === 'native' && state.bridge !== 'app_connected';
     $('owner').textContent = state.session.owner === 'native'
       ? (degraded ? 'Mac app disconnected: only browser restrictions are enforced.' : 'Browser and desktop isolation active.')
@@ -60,6 +63,10 @@ async function refresh(): Promise<void> {
       : 'Browser-only mode: tabs and navigation are restricted; the rest of the desktop is not obscured.';
   }
   if (state.lastError) showError(state.lastError);
+  if (!state.session) {
+    const later = (await chrome.storage.local.get('later')).later as { items?: unknown[] } | undefined;
+    $('later-link').hidden = !later?.items?.length;
+  }
 }
 
 function selectDuration(btn: HTMLButtonElement | null): void {

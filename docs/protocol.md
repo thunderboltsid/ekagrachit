@@ -28,7 +28,8 @@ Session ids (`sid`) are 8–64 chars of `[A-Za-z0-9_-]`.
 | `window_ready` | `sid`, `windowId`, `tabId`, `bounds{left,top,width,height}`, `state` | Focus window exists and is enforced. Re-sent after recreation, re-homing, reconnect. |
 | `window_bounds` | `sid`, `windowId`, `bounds`, `state` | Focus window moved/resized. |
 | `window_lost` | `sid` | Focus window closed; being recreated. |
-| `violation` | `sid`, `kind` | An escape attempt was blocked/reverted (prompts an immediate native focus check). |
+| `violation` | `sid`, `kind`, `host?` | An escape attempt was blocked/reverted (prompts an immediate native focus check). `host` is set when the link was saved for later. |
+| `active_tab` | `cid`, `url` | Answer to `active_tab_request`: the active tab's http(s) URL, or `""`. |
 | `session_closed` | `sid`, `reason` | Extension ended its side (ack of a `sync(null)`, user ended in browser, invalid target, or tombstoned sid). |
 | `error` | `sid?`, `code`, `message` | e.g. `window_create_failed`, `invalid_target`. |
 
@@ -40,6 +41,8 @@ Session ids (`sid`) are 8–64 chars of `[A-Za-z0-9_-]`.
 | `focus` | `sid` | Bring the focus window forward (unminimise). |
 | `start_result` | `cid`, `ok`, `error?` | Answer to `start_request`. |
 | `error` | `code`, `message` | e.g. `protocol_mismatch`. |
+| `reload` | — | The app bundles a different extension build (already copied to the extension folder); an idle extension reloads itself. Sent at most once per extension version per app run. |
+| `active_tab_request` | `cid` | Prefill the start form with the active tab. |
 
 ## Reconciliation (extension)
 | local | desired | action |

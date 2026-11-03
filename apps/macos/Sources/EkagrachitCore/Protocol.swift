@@ -31,7 +31,8 @@ public enum AppInbound: Equatable, Sendable {
     case windowReady(sid: String, windowId: Int, tabId: Int, bounds: Rect, state: String)
     case windowBounds(sid: String, windowId: Int, bounds: Rect, state: String)
     case windowLost(sid: String)
-    case violation(sid: String, kind: String)
+    case violation(sid: String, kind: String, host: String?)
+    case activeTab(cid: String, url: String)
     case sessionClosed(sid: String, reason: String)
     case error(sid: String?, code: String, message: String)
 
@@ -76,7 +77,10 @@ public enum AppInbound: Equatable, Sendable {
             return .windowLost(sid: sid)
         case "violation":
             guard let sid, let kind = str(obj["kind"], 64) else { return nil }
-            return .violation(sid: sid, kind: kind)
+            return .violation(sid: sid, kind: kind, host: str(obj["host"], 253))
+        case "active_tab":
+            guard let cid = str(obj["cid"], 64), let url = str(obj["url"], BridgeProtocol.maxTargetLength) else { return nil }
+            return .activeTab(cid: cid, url: url)
         case "session_closed":
             guard let sid else { return nil }
             return .sessionClosed(sid: sid, reason: str(obj["reason"], 64) ?? "unknown")
@@ -131,6 +135,10 @@ public enum AppOutbound: Equatable, Sendable {
     case focus(sid: String)
     case startResult(cid: String, ok: Bool, error: String?)
     case error(code: String, message: String)
+    /// The app bundles a newer extension: reload from disk (only honoured when idle).
+    case reload
+    /// Ask for the active tab's URL to prefill the start form.
+    case activeTabRequest(cid: String)
 
     public var json: [String: Any] {
         switch self {
@@ -152,6 +160,10 @@ public enum AppOutbound: Equatable, Sendable {
             return m
         case let .error(code, message):
             return ["v": 1, "type": "error", "code": code, "message": message]
+        case .reload:
+            return ["v": 1, "type": "reload"]
+        case let .activeTabRequest(cid):
+            return ["v": 1, "type": "active_tab_request", "cid": cid]
         }
     }
 

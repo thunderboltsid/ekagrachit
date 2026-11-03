@@ -30,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Menu bar app: no Dock icon even when run outside a bundle (swift run).
         NSApp.setActivationPolicy(.accessory)
         coordinator.start()
+        NotificationCenter.default.addObserver(forName: FocusSessionCoordinator.showSetupNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.showSetup() }
+        }
         // Give Chrome's extension a moment to connect, then show setup if
         // anything is missing (or on first launch, to point at the menu bar).
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in

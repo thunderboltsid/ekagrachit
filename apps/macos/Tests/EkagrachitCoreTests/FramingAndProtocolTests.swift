@@ -47,6 +47,17 @@ final class ProtocolTests: XCTestCase {
                        .hello(protocolVersion: 1, extVersion: "unknown", extensionId: "", standalone: nil))
     }
 
+    func testParsesV1Additions() {
+        XCTAssertEqual(AppInbound.parse(json(["type": "violation", "sid": sid, "kind": "tab_closed", "host": "acme.atlassian.net"])),
+                       .violation(sid: sid, kind: "tab_closed", host: "acme.atlassian.net"))
+        XCTAssertEqual(AppInbound.parse(json(["type": "violation", "sid": sid, "kind": "tab_closed"])),
+                       .violation(sid: sid, kind: "tab_closed", host: nil))
+        XCTAssertEqual(AppInbound.parse(json(["type": "active_tab", "cid": "c1", "url": "https://x.example/"])), .activeTab(cid: "c1", url: "https://x.example/"))
+        XCTAssertNil(AppInbound.parse(json(["type": "active_tab", "cid": "c1"])))
+        let reload = try! JSONSerialization.jsonObject(with: AppOutbound.reload.encoded()) as! [String: Any]
+        XCTAssertEqual(reload["type"] as? String, "reload")
+    }
+
     func testRejectsMalformedMessages() {
         let bad: [Data] = [
             Data("not json".utf8), Data("[]".utf8), Data("{}".utf8),

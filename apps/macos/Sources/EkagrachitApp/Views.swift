@@ -46,6 +46,11 @@ struct MenuContentView: View {
                 .tracking(3)
                 .frame(maxWidth: .infinity, alignment: .center)
             switch coordinator.phase {
+            case .idle where coordinator.waitingForChrome:
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Opening Chrome…")
+                }
             case .idle: idleView
             case .preparing: preparingView
             case .active, .degraded, .ending: activeView
@@ -64,6 +69,10 @@ struct MenuContentView: View {
             let d = coordinator.settings.defaultMinutes
             if presets.contains(d) { choice = .preset(d) } else { choice = .custom; customMinutes = d }
             urlFocused = true
+            coordinator.refreshSuggestion()
+        }
+        .onChange(of: coordinator.suggestedTarget) { _, url in
+            if let url, target.isEmpty { target = url }
         }
     }
 
@@ -138,9 +147,16 @@ struct MenuContentView: View {
 
     private var statusRows: some View {
         VStack(alignment: .leading, spacing: 6) {
-            statusRow(ok: coordinator.extensionConnected,
-                      okText: "Chrome extension connected" + (coordinator.extensionVersion.map { " (v\($0))" } ?? ""),
-                      badText: coordinator.bridgeError ?? "Chrome extension not connected")
+            HStack {
+                statusRow(ok: coordinator.extensionConnected,
+                          okText: "Chrome extension connected" + (coordinator.extensionVersion.map { " (v\($0))" } ?? ""),
+                          badText: coordinator.bridgeError ?? "Chrome extension not connected")
+                if !coordinator.extensionConnected {
+                    Spacer()
+                    Button("Set Up…") { NotificationCenter.default.post(name: FocusSessionCoordinator.showSetupNotification, object: nil) }
+                        .controlSize(.small)
+                }
+            }
             HStack {
                 statusRow(ok: coordinator.accessibilityTrusted, okText: "Accessibility granted", badText: "Accessibility not granted")
                 if !coordinator.accessibilityTrusted {
@@ -206,7 +222,7 @@ struct SettingsView: View {
             }
             Section("General") {
                 Toggle("Open at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { settings.launchAtLogin = $0 }
+                    .onChange(of: launchAtLogin) { _, on in settings.launchAtLogin = on }
                 LabeledContent("Emergency exit", value: HotKey.emergencyDisplay)
             }
         }
@@ -234,8 +250,15 @@ struct SetupView: View {
                  title: "Chrome extension connected",
                  detail: coordinator.extensionConnected
                     ? "Version \(coordinator.extensionVersion ?? "?")"
-                    : (coordinator.bridgeError ?? "Load extensions/chrome/dist in chrome://extensions (Developer mode → Load unpacked), with Chrome running.")) {
-                Link("Installation guide", destination: URL(string: "https://github.com/thunderboltsid/ekagrachit/blob/main/docs/installation.md")!)
+                    : "In Chrome's Extensions page, turn on Developer mode (top right), then drag the “Chrome Extension” folder onto the page.") {
+                if !coordinator.extensionConnected {
+                    HStack {
+                        Button("Open Chrome Extensions") { coordinator.openChromeExtensionsPage() }
+                        Button("Show Extension Folder") { coordinator.revealExtensionFolder() }
+                            .disabled(coordinator.extensionFolder == nil)
+                    }
+                    .buttonStyle(.glass)
+                }
             }
             step(done: coordinator.accessibilityTrusted,
                  title: "Accessibility permission",
@@ -247,6 +270,7 @@ struct SetupView: View {
                         Permissions.requestAccessibility()
                         Permissions.openAccessibilitySettings()
                     }
+                    .buttonStyle(.glass)
                 }
             }
             Divider()

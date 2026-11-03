@@ -1,0 +1,11 @@
+body.window { width: auto; max-width: 640px; margin: 0 auto; }
+main.later { padding: 24px; gap: 16px; }
+h2 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+ul { list-style: none; padding: 0; margin: 8px 0 0; border-top: 1px solid var(--line); }
+li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+li .host { font-weight: 600; }
+li .path { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+li.opened .host, li.opened .path { opacity: .5; }
+li button, .actions .secondary { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
+.actions { display: flex; gap: 8px; margin-top: 8px; }
+.actions .primary { padding: 6px 14px; }

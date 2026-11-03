@@ -45,6 +45,21 @@ final class FocusSessionCoordinator: ObservableObject {
     @Published private(set) var extensionVersion: String?
     @Published private(set) var bridgeError: String?
     @Published var message: String?
+    /// Where the unpacked extension lives for Chrome to load (copied from the app bundle).
+    @Published private(set) var extensionFolder: URL?
+    /// Version of the extension bundled with this app.
+    @Published private(set) var bundledExtensionVersion: String?
+    /// URL of Chrome's active tab, offered to prefill the start form.
+    @Published private(set) var suggestedTarget: String?
+    /// A start is waiting for Chrome/the extension to come up.
+    @Published private(set) var waitingForChrome = false
+
+    static let showSetupNotification = Notification.Name("EkagrachitShowSetup")
+    static let chromeBundleID = "com.google.Chrome"
+    private var pendingStart: (target: String, minutes: Int, until: Date)?
+    private var pendingTabCID: String?
+    /// Extension versions we already asked to reload (once per version, per app run: no loops).
+    private var reloadRequested: Set<String> = []
 
     let settings = AppSettings()
     private let clock = SystemClock.shared
@@ -80,6 +95,7 @@ final class FocusSessionCoordinator: ObservableObject {
     // MARK: - Lifecycle
 
     func start() {
+        registerHostAndExtension()
         overlays.style = settings.overlayStyle
         settings.$overlayStyle.sink { [weak self] s in self?.overlays.style = s }.store(in: &cancellables)
         overlays.onClick = { [weak self] in self?.refocus(force: true) }
@@ -112,6 +128,52 @@ final class FocusSessionCoordinator: ObservableObject {
         observeSystem()
     }
 
+    /// Makes installation "drag to Applications": register the bundled native
+    /// messaging host with every installed Chromium browser and keep the
+    /// loadable copy of the extension in sync with the one in the bundle.
+    private func registerHostAndExtension() {
+        let env = ProcessInfo.processInfo.environment
+        let fm = FileManager.default
+        if let src = Bundle.main.url(forResource: "ChromeExtension", withExtension: nil) {
+            let dst = Paths.supportDirectory.appendingPathComponent("Chrome Extension", isDirectory: true)
+            do {
+                try NativeHostRegistration.syncExtension(from: src, to: dst)
+                extensionFolder = dst
+            } catch {
+                NSLog("Ekagrachit: could not copy the Chrome extension: \(error)")
+            }
+            if let data = try? Data(contentsOf: src.appendingPathComponent("manifest.json")),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                bundledExtensionVersion = obj["version"] as? String
+            }
+        }
+        guard env["EKAGRACHIT_NO_HOST_REGISTRATION"] != "1" else { return }
+        let host = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/ekagrachit-host")
+        guard fm.isExecutableFile(atPath: host.path),
+              let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+        let result = NativeHostRegistration.register(hostPath: host.path, applicationSupport: support)
+        if !result.failed.isEmpty { NSLog("Ekagrachit: could not register the native host for \(result.failed)") }
+    }
+
+    func revealExtensionFolder() {
+        guard let folder = extensionFolder else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([folder])
+    }
+
+    func openChromeExtensionsPage() {
+        guard let chrome = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.chromeBundleID),
+              let url = URL(string: "chrome://extensions") else { return }
+        NSWorkspace.shared.open([url], withApplicationAt: chrome, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    /// Ask the extension for the active tab's URL (menu prefill).
+    func refreshSuggestion() {
+        guard let id = activeConnection, machine.phase == .idle else { return }
+        let cid = BridgeProtocol.newSid()
+        pendingTabCID = cid
+        bridge.send(.activeTabRequest(cid: cid), to: id)
+    }
+
     /// Called on app termination (logout, update, kill via Quit when idle).
     /// Overlays die with the process; the persisted session (if any) lets a
     /// relaunch resume it until its deadline.
@@ -139,7 +201,7 @@ final class FocusSessionCoordinator: ObservableObject {
             return report("Ekagrachit needs the Accessibility permission to keep the focus window in front. Grant it in System Settings → Privacy & Security → Accessibility, then start again.")
         }
         guard let pid = currentBrowserPid() else {
-            return report("The Ekagrachit Chrome extension is not connected. Open Chrome and make sure the extension is installed.")
+            return deferUntilChromeIsReady(target: normalized, minutes: minutes)
         }
         tracker.beginSession(browserPid: pid)
         if let rejection = dispatch(.startRequested(sid: BridgeProtocol.newSid(), target: normalized, duration: TimeInterval(minutes * 60))) {
@@ -148,6 +210,38 @@ final class FocusSessionCoordinator: ObservableObject {
         message = nil
         closeMenuWindow()
         return nil
+    }
+
+    /// No extension connected: open Chrome if needed and start as soon as the
+    /// extension says hello (or give a clear error after 20 s).
+    private func deferUntilChromeIsReady(target: String, minutes: Int) -> String? {
+        guard let chrome = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.chromeBundleID) else {
+            return report("Google Chrome is not installed. Ekagrachit opens your document in Chrome.")
+        }
+        if NSRunningApplication.runningApplications(withBundleIdentifier: Self.chromeBundleID).isEmpty {
+            let config = NSWorkspace.OpenConfiguration()
+            config.activates = false
+            NSWorkspace.shared.openApplication(at: chrome, configuration: config)
+        }
+        pendingStart = (target, minutes, Date().addingTimeInterval(20))
+        waitingForChrome = true
+        message = nil
+        return nil
+    }
+
+    private func checkPendingStart() {
+        guard let p = pendingStart else { return }
+        if activeConnection != nil, browserPids[activeConnection!] != nil {
+            pendingStart = nil
+            waitingForChrome = false
+            if let error = startSession(target: p.target, minutes: p.minutes) { toast.show(error, for: 6) }
+        } else if Date() > p.until {
+            pendingStart = nil
+            waitingForChrome = false
+            let text = "Chrome is open, but the Ekagrachit extension didn't connect. Check that it is installed and enabled."
+            message = text
+            toast.show(text, for: 6)
+        }
     }
 
     /// The menu-bar window must not stay open over the focus window.
@@ -261,6 +355,7 @@ final class FocusSessionCoordinator: ObservableObject {
 
     private func tick() {
         ticks += 1
+        checkPendingStart()
         dispatch(.tick)
         if isSessionRunning, ticks % 10 == 0 { sendSync() } // heals anything lost in transit
         if ticks % 2 == 0 { accessibilityTrusted = Permissions.accessibilityTrusted }
@@ -296,6 +391,13 @@ final class FocusSessionCoordinator: ObservableObject {
                 dispatch(.adoptRequested(sid: s.sid, target: target, remaining: s.remainingMs / 1000))
             }
             dispatch(.extensionConnected)
+            if let bundled = bundledExtensionVersion, bundled != extVersion, machine.phase == .idle, !reloadRequested.contains(extVersion) {
+                // This app ships a different extension build (it was just copied
+                // to the extension folder): have the idle extension reload itself.
+                reloadRequested.insert(extVersion)
+                bridge.send(.reload, to: id)
+            }
+            checkPendingStart()
             return
         default:
             break
@@ -323,9 +425,11 @@ final class FocusSessionCoordinator: ObservableObject {
             dispatch(.windowBounds(sid: sid, windowId: windowId, bounds: bounds))
         case let .windowLost(sid):
             dispatch(.windowLost(sid: sid))
-        case .violation:
-            flashHUD("Back to your focus")
+        case let .violation(_, _, host):
+            flashHUD(host.map { "Saved for later: \($0)" } ?? "Back to your focus")
             evaluateFocus()
+        case let .activeTab(cid, url):
+            if cid == pendingTabCID, url.hasPrefix("http") { suggestedTarget = url }
         case let .sessionClosed(sid, _):
             dispatch(.extensionClosed(sid: sid))
         case let .error(sid, _, text):
