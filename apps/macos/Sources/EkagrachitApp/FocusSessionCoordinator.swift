@@ -149,6 +149,7 @@ final class FocusSessionCoordinator: ObservableObject {
         tickTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
+        tickTimer?.tolerance = 0.1 // lets macOS coalesce wake-ups
         // One unresponsive app must never freeze Ekagrachit: cap every
         // Accessibility call (the system default is about 6 s).
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), AX.timeout)
@@ -259,7 +260,7 @@ final class FocusSessionCoordinator: ObservableObject {
     @discardableResult
     func startAppSession(_ target: NativeWindowTarget, minutes: Int) -> String? {
         guard (1...480).contains(minutes) else { return report("Choose a duration between 1 and 480 minutes.") }
-        accessibilityTrusted = Permissions.accessibilityTrusted
+        refreshAccessibilityTrusted()
         let allowUntrusted = ProcessInfo.processInfo.environment["EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY"] == "1"
         guard accessibilityTrusted || allowUntrusted else {
             Permissions.requestAccessibility()
@@ -333,7 +334,7 @@ final class FocusSessionCoordinator: ObservableObject {
         case let .failure(e): return report(e.description)
         }
         guard (1...480).contains(minutes) else { return report("Choose a duration between 1 and 480 minutes.") }
-        accessibilityTrusted = Permissions.accessibilityTrusted
+        refreshAccessibilityTrusted()
         // Test rigs without a TCC grant may opt out; raising then falls back to app activation.
         let allowUntrusted = ProcessInfo.processInfo.environment["EKAGRACHIT_ALLOW_WITHOUT_ACCESSIBILITY"] == "1"
         guard accessibilityTrusted || allowUntrusted else {
@@ -488,7 +489,7 @@ final class FocusSessionCoordinator: ObservableObject {
     }
 
     func refreshPermissions() {
-        accessibilityTrusted = Permissions.accessibilityTrusted
+        refreshAccessibilityTrusted()
     }
 
     @discardableResult
@@ -623,7 +624,7 @@ final class FocusSessionCoordinator: ObservableObject {
         checkPendingStart()
         dispatch(.tick)
         if isSessionRunning, ticks % 10 == 0 { sendSync() } // heals anything lost in transit
-        if ticks % 2 == 0 { accessibilityTrusted = Permissions.accessibilityTrusted }
+        if ticks % 2 == 0 { refreshAccessibilityTrusted() }
         updateHUD()
     }
 
@@ -641,8 +642,16 @@ final class FocusSessionCoordinator: ObservableObject {
         return Int(((s.deadline.wall - s.startedAt) / 60).rounded())
     }
 
+    private func refreshAccessibilityTrusted() {
+        let t = Permissions.accessibilityTrusted
+        if t != accessibilityTrusted { accessibilityTrusted = t }
+    }
+
     private func updateRemaining() {
-        remaining = machine.session.map { $0.deadline.remaining(at: clock.now()) } ?? 0
+        // @Published fires on every assignment, equal or not: only publish
+        // changes, so an idle app doesn't redraw its menu-bar item every second.
+        let r = machine.session.map { $0.deadline.remaining(at: clock.now()) } ?? 0
+        if r != remaining { remaining = r }
     }
 
     // MARK: - Bridge
