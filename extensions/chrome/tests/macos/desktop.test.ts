@@ -84,7 +84,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
    *  - overlays must cover everything else and nothing of that area;
    *  - pixels: a screenshot must show the page (white) inside that area, not the overlay.
    */
-  const assertHoleAround = (popup: Rect, label = 'hole') => {
+  const assertHoleAround = (popup: Rect, label = 'hole', reference?: string) => {
     const fullscreen = popup.x <= screen.x + 2 && popup.y <= screen.y + 2 && popup.w >= screen.w - 4 && popup.h >= screen.h - 4;
     const v = fullscreen ? screen : screen.visible;
     const hx = Math.max(popup.x, v.x), hy = Math.max(popup.y, v.y);
@@ -111,8 +111,18 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const file = join(ART, `check-${label}.png`);
     execFileSync('screencapture', ['-x', file]);
     const region = { x: hole.x + 40, y: hole.y + 120, w: Math.max(20, hole.w - 80), h: Math.max(20, Math.min(200, hole.h - 160)) };
-    const { brightness } = probe<{ brightness: number }>('brightness', file, ...[region.x, region.y, region.w, region.h].map(String));
-    assert.ok(brightness > 0.9, `focus window content not visible in screenshot (brightness ${brightness.toFixed(2)} in ${JSON.stringify(region)})`);
+    const regionArgs = [region.x, region.y, region.w, region.h].map(String);
+    if (reference) {
+      // Any app's colours: the window must look as it did before the session.
+      type C = { r: number; g: number; b: number };
+      const now = probe<C>('brightness', file, ...regionArgs);
+      const was = probe<C>('brightness', reference, ...regionArgs);
+      const d = Math.hypot(now.r - was.r, now.g - was.g, now.b - was.b);
+      assert.ok(d < 0.04, `focus window looks different than before the session (Δ ${d.toFixed(3)}: now ${JSON.stringify(now)}, before ${JSON.stringify(was)})`);
+    } else {
+      const { brightness } = probe<{ brightness: number }>('brightness', file, ...regionArgs);
+      assert.ok(brightness > 0.9, `focus window content not visible in screenshot (brightness ${brightness.toFixed(2)} in ${JSON.stringify(region)})`);
+    }
     // Rounded corners: the slivers between the window's rounded corner and the
     // rectangular hole must show the overlay, not what's behind (black in CI).
     // Compare colours with a sample of the overlay itself.
@@ -497,6 +507,10 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
     execFileSync(lsregister, ['-f', APP]);
     const before = execFileSync('pgrep', ['-x', 'Ekagrachit'], { encoding: 'utf8' }).trim().split('\n');
+    probe('activate', 'com.apple.Terminal');
+    await sleep(1500); // Terminal settles its size; then a reference picture of it
+    const reference = join(ART, 'check-terminal-before.png');
+    execFileSync('screencapture', ['-x', reference]);
     execFileSync('open', ['ekagrachit://focus?app=com.apple.Terminal&minutes=5']);
     try {
     await sleep(1500);
@@ -509,7 +523,7 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     shot('32-native-terminal');
     // Read the bounds now: Terminal snaps its height to whole rows after opening.
     const term = appWindow('Terminal')!;
-    assertHoleAround({ x: term.x, y: term.y, w: term.w, h: term.h }, 'terminal');
+    assertHoleAround({ x: term.x, y: term.y, w: term.w, h: term.h }, 'terminal', reference);
     await endViaHold();
     } finally {
       await endIfRunning();
