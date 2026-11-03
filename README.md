@@ -18,6 +18,9 @@ tab, site and app out of reach until the time is up.
 It is not a website blocker. Jira isn't "bad"; it just isn't what you chose
 to work on for the next 45 minutes.
 
+The name comes from the Bhagavad Gītā and Patañjali's Yoga Sūtras: *ekāgra*,
+the one-pointed mind, "a lamp sheltered from the wind." [What the name means →](https://thunderboltsid.github.io/ekagrachit/#name)
+
 ![A focus session: the design doc is sharp and interactive; everything else on screen is covered; a small pill shows the time left](docs/images/focus-session.png)
 
 ## What happens during a session
