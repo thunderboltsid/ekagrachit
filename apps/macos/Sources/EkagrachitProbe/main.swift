@@ -62,16 +62,17 @@ case "brightness":
     let scale = Double(rep.pixelsWide) / primary.frame.width
     let x0 = Int(Double(a[2])! * scale), y0 = Int(Double(a[3])! * scale)
     let w = Int(Double(a[4])! * scale), h = Int(Double(a[5])! * scale)
-    var sum = 0.0, n = 0.0
+    var sum = 0.0, n = 0.0, rs = 0.0, gs = 0.0, bs = 0.0
     for y in stride(from: max(0, y0), to: min(rep.pixelsHigh, y0 + h), by: 3) {
         for x in stride(from: max(0, x0), to: min(rep.pixelsWide, x0 + w), by: 3) {
             if let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) {
                 sum += (c.redComponent + c.greenComponent + c.blueComponent) / 3
+                rs += c.redComponent; gs += c.greenComponent; bs += c.blueComponent
                 n += 1
             }
         }
     }
-    emit(["brightness": n > 0 ? sum / n : -1, "samples": n])
+    emit(["brightness": n > 0 ? sum / n : -1, "r": n > 0 ? rs / n : -1, "g": n > 0 ? gs / n : -1, "b": n > 0 ? bs / n : -1, "samples": n])
 case "frontmost":
     emit(frontmost())
 case "statusitem":

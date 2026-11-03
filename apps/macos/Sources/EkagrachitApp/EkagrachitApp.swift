@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var setupWindow: NSWindow?
     private var settingsWindow: NSWindow?
     static let showSettingsNotification = Notification.Name("EkagrachitShowSettings")
+    static let showAboutNotification = Notification.Name("EkagrachitShowAbout")
+    private var aboutWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu bar app: no Dock icon even when run outside a bundle (swift run).
@@ -34,8 +36,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: Self.showSettingsNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.showSettings() }
         }
+        NotificationCenter.default.addObserver(forName: Self.showAboutNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.showAbout() }
+        }
         let env = ProcessInfo.processInfo.environment
         if env["EKAGRACHIT_APPEARANCE"] == "dark" { NSApp.appearance = NSAppearance(named: .darkAqua) } // screenshot hook
+        if env["EKAGRACHIT_OPEN_ABOUT"] == "1" { // screenshot hook
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                MainActor.assumeIsolated { self?.showAbout() }
+            }
+        }
         if env["EKAGRACHIT_OPEN_SETTINGS"] == "1" { // screenshot hook
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 MainActor.assumeIsolated { self?.showSettings() }
@@ -84,6 +94,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate()
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    func showAbout() {
+        if aboutWindow == nil {
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 640), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            w.title = "About Ekagrachit"
+            w.isReleasedWhenClosed = false
+            let version = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "dev"
+            w.contentView = NSHostingView(rootView: AboutView(version: version))
+            w.center()
+            aboutWindow = w
+        }
+        NSApp.activate()
+        aboutWindow?.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

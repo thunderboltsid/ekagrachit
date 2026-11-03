@@ -110,11 +110,19 @@ describe('Test B: desktop isolation on macOS', { skip: !isMac && 'macOS only' },
     const { brightness } = probe<{ brightness: number }>('brightness', file, ...[region.x, region.y, region.w, region.h].map(String));
     assert.ok(brightness > 0.9, `focus window content not visible in screenshot (brightness ${brightness.toFixed(2)} in ${JSON.stringify(region)})`);
     // Rounded corners: the slivers between the window's rounded corner and the
-    // rectangular hole must not show what's behind (black desktop in CI).
+    // rectangular hole must show the overlay, not what's behind (black in CI).
+    // Compare colours with a sample of the overlay itself.
+    type Rgb = { r: number; g: number; b: number; brightness: number };
     const v2 = screen.visible;
-    if (!fullscreen && popup.x >= v2.x && popup.y + popup.h <= v2.y + v2.h) {
-      const c = probe<{ brightness: number }>('brightness', file, String(popup.x), String(popup.y + popup.h - 3), '3', '3');
-      assert.ok(c.brightness > 0.3, `bottom-left corner sliver shows what is behind the focus window (brightness ${c.brightness.toFixed(2)})`);
+    const overlaySample: Rgb | null = popup.y > v2.y + 40
+      ? probe<Rgb>('brightness', file, String(v2.x + 10), String(v2.y + 8), '40', '20')
+      : popup.x + popup.w < v2.x + v2.w - 40
+        ? probe<Rgb>('brightness', file, String(popup.x + popup.w + 10), String(popup.y + 60), '20', '40')
+        : null;
+    if (!fullscreen && overlaySample && popup.x >= v2.x && popup.y + popup.h <= v2.y + v2.h) {
+      const c = probe<Rgb>('brightness', file, String(popup.x), String(popup.y + popup.h - 3), '3', '3');
+      const dist = Math.hypot(c.r - overlaySample.r, c.g - overlaySample.g, c.b - overlaySample.b);
+      assert.ok(dist < 0.12, `bottom-left corner sliver doesn't match the overlay (corner ${JSON.stringify(c)}, overlay ${JSON.stringify(overlaySample)})`);
     }
     // …and the area outside it must be covered (the overlay is a uniform tint, never the white page).
     if (hole.y > screen.y + 60 || hole.x + hole.w < screen.x + screen.w - 60) {

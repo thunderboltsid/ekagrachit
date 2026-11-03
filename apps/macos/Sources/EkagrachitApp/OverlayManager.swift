@@ -9,10 +9,16 @@ let overlayLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 
 let hudLevel = NSWindow.Level(rawValue: overlayLevel.rawValue + 1)
 let confirmLevel = NSWindow.Level(rawValue: overlayLevel.rawValue + 2)
 
+/// Brand colours, from the app icon: a warm lamp in a deep indigo night.
+enum Palette {
+    static let night = NSColor(srgbRed: 0.043, green: 0.047, blue: 0.11, alpha: 1)
+    static let lamp = NSColor(srgbRed: 1.0, green: 0.66, blue: 0.25, alpha: 1)
+}
+
 enum OverlayStyle: String, CaseIterable, Identifiable {
     case frosted, opaque
     var id: String { rawValue }
-    var label: String { self == .frosted ? "Frosted glass" : "Solid" }
+    var label: String { self == .frosted ? "Dimmed (soft blur)" : "Dark (solid)" }
 }
 
 /// A borderless, non-activating panel that blocks clicks and hides what is behind it.
@@ -34,27 +40,36 @@ class OverlayPanel: NSPanel {
         contentView = OverlayPanel.makeContent(style: style)
     }
 
-    static func makeContent(style: OverlayStyle) -> NSView {
-        let root = NSView()
+    /// The "windless place": everything but the focus window recedes into a
+    /// deep, quiet night so the document is the only thing lit. An optional
+    /// mask shapes it (used for the rounded-corner pieces).
+    static func makeContent(style: OverlayStyle, mask: NSImage? = nil, size: NSSize = .zero) -> NSView {
+        let root = NSView(frame: NSRect(origin: .zero, size: size))
         root.wantsLayer = true
-        switch style {
-        case .frosted:
+        if style == .frosted {
             // Blurs whatever is behind, composited by the window server: no
             // screen capture and no Screen Recording permission involved.
-            let blur = NSVisualEffectView()
+            let blur = NSVisualEffectView(frame: root.bounds)
             blur.material = .fullScreenUI
             blur.blendingMode = .behindWindow
             blur.state = .active
+            blur.appearance = NSAppearance(named: .darkAqua)
             blur.autoresizingMask = [.width, .height]
+            blur.maskImage = mask
             root.addSubview(blur)
-            let dim = NSView()
-            dim.wantsLayer = true
-            dim.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
-            dim.autoresizingMask = [.width, .height]
-            root.addSubview(dim)
-        case .opaque:
-            root.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         }
+        let tint = NSView(frame: root.bounds)
+        tint.wantsLayer = true
+        tint.layer?.backgroundColor = Palette.night.withAlphaComponent(style == .frosted ? 0.62 : 1).cgColor
+        tint.autoresizingMask = [.width, .height]
+        if let mask {
+            let m = CALayer()
+            m.contents = mask
+            m.frame = tint.bounds
+            m.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+            tint.layer?.mask = m
+        }
+        root.addSubview(tint)
         return root
     }
 
@@ -108,19 +123,46 @@ final class OverlayManager {
     ///   - shielded: cover the hole too (something else is in front of the focus window)
     ///   - patches: extra rects (global top-left) inside the hole to cover, e.g. the Dock over the focus window
     func show(hole: Rect?, shielded: Bool, patches: [Rect] = []) {
+        let appearing = !isShown
         isShown = true
+        generation += 1
         layout(hole: shielded ? nil : hole, patches: shielded ? [] : patches)
         hud.place(near: hole)
         if !isSuspended { hud.orderFrontRegardless() }
+        if appearing { fade(to: 1, from: 0, duration: 0.35) }
     }
 
     func hide() {
+        guard isShown else { return }
         isShown = false
         isSuspended = false
-        pool.forEach { $0.orderOut(nil) }
-        fillets.values.forEach { $0.orderOut(nil) }
         lastLayout = []
-        hud.orderOut(nil)
+        generation += 1
+        let gen = generation
+        fade(to: 0, from: nil, duration: 0.25) { [weak self] in
+            // A new session may have started during the fade: leave it alone.
+            guard let self, self.generation == gen else { return }
+            self.allPanels.forEach { $0.orderOut(nil); $0.alphaValue = 1 }
+        }
+    }
+
+    private var generation = 0
+    private var allPanels: [NSPanel] { pool + Array(fillets.values) + [hud] }
+
+    /// Quiet transitions in and out of focus (skipped with Reduce Motion).
+    private func fade(to target: CGFloat, from start: CGFloat?, duration: TimeInterval, completion: (() -> Void)? = nil) {
+        let panels = allPanels.filter(\.isVisible)
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            panels.forEach { $0.alphaValue = target }
+            completion?()
+            return
+        }
+        if let start { panels.forEach { $0.alphaValue = start } }
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = duration
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panels.forEach { $0.animator().alphaValue = target }
+        }, completionHandler: completion)
     }
 
     /// Temporarily step aside for system security UI (password prompts, permission dialogs).
@@ -244,13 +286,7 @@ final class CornerPanel: OverlayPanel {
             path.fill()
             return true
         }
-        let blur = NSVisualEffectView()
-        blur.material = .fullScreenUI
-        blur.blendingMode = .behindWindow
-        blur.state = .active
-        blur.maskImage = mask
-        if style == .opaque { blur.material = .windowBackground }
-        contentView = blur
+        contentView = OverlayPanel.makeContent(style: style, mask: mask, size: NSSize(width: radius, height: radius))
     }
 }
 
@@ -304,8 +340,38 @@ final class PillButton: NSView {
     }
 }
 
+/// The brand mark as a progress indicator: a ring that fills as the session
+/// goes, around a warm point. One glance: time left (the digits) and how far
+/// along you are (the arc).
+final class ProgressRing: NSView {
+    var fraction: CGFloat = 0 { didSet { if abs(fraction - oldValue) > 0.002 { needsDisplay = true } } }
+
+    override var intrinsicContentSize: NSSize { NSSize(width: 13, height: 13) }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let r = bounds.insetBy(dx: 1.5, dy: 1.5)
+        let center = NSPoint(x: r.midX, y: r.midY)
+        let radius = min(r.width, r.height) / 2
+        let track = NSBezierPath(ovalIn: NSRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+        track.lineWidth = 1.6
+        NSColor.labelColor.withAlphaComponent(0.18).setStroke()
+        track.stroke()
+        if fraction > 0 {
+            let arc = NSBezierPath()
+            arc.appendArc(withCenter: center, radius: radius, startAngle: 90, endAngle: 90 - 360 * min(1, fraction), clockwise: true)
+            arc.lineWidth = 1.6
+            arc.lineCapStyle = .round
+            NSColor.labelColor.withAlphaComponent(0.75).setStroke()
+            arc.stroke()
+        }
+        Palette.lamp.setFill()
+        NSBezierPath(ovalIn: NSRect(x: center.x - 2.2, y: center.y - 2.2, width: 4.4, height: 4.4)).fill()
+    }
+}
+
 final class HUDPanel: NSPanel {
     static let height: CGFloat = 22
+    private let ring = ProgressRing()
     private let label = NSTextField(labelWithString: "")
     private let detail = NSTextField(labelWithString: "")
     private let endButton = PillButton(title: "End…")
@@ -331,11 +397,13 @@ final class HUDPanel: NSPanel {
         endButton.setAccessibilityLabel("End focus session early")
         endButton.toolTip = "End early (\(HotKey.emergencyDisplay))"
 
-        let stack = NSStackView(views: [label, detail, endButton])
+        ring.setAccessibilityElement(false)
+        let stack = NSStackView(views: [ring, label, detail, endButton])
         stack.orientation = .horizontal
         stack.alignment = .centerY
         stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 0, left: 11, bottom: 0, right: 3)
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 3)
+        stack.spacing = 6
         let glass = NSGlassEffectView()
         glass.cornerRadius = HUDPanel.height / 2
         glass.contentView = stack
@@ -345,8 +413,10 @@ final class HUDPanel: NSPanel {
     override var canBecomeKey: Bool { false }
 
 
-    func update(remaining: TimeInterval, detailText: String?) {
+    func update(remaining: TimeInterval, fraction: Double, detailText: String?) {
+        ring.fraction = CGFloat(fraction)
         label.stringValue = Self.format(remaining)
+        setAccessibilityLabel("\(Self.format(remaining)) remaining")
         detail.stringValue = detailText ?? ""
         detail.isHidden = (detailText ?? "").isEmpty
         let size = contentView?.fittingSize ?? NSSize(width: 160, height: HUDPanel.height)

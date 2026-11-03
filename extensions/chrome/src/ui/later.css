@@ -9,3 +9,6 @@ li.opened .host, li.opened .path { opacity: .5; }
 li button, .actions .secondary { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
 .actions { display: flex; gap: 8px; margin-top: 8px; }
 .actions .primary { padding: 6px 14px; }
+footer.name { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+footer.name p { margin: 0 0 6px; }
+footer.name a { color: var(--muted); }

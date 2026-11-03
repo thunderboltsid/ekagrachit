@@ -21,11 +21,15 @@ final class ConfirmEndPanel: NSPanel {
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
 
-        let title = NSTextField(labelWithString: "End this focus session early?")
+        let title = NSTextField(labelWithString: "End this session early?")
         title.font = .systemFont(ofSize: 15, weight: .semibold)
-        let body = NSTextField(wrappingLabelWithString: "Restrictions will be lifted and the focus window closed (you will be asked about unsaved changes).")
+        let body = NSTextField(wrappingLabelWithString: "Restrictions lift and the focus window closes. You'll be asked about any unsaved changes.")
         body.font = .systemFont(ofSize: 12)
         body.textColor = .secondaryLabelColor
+        // The teachable moment: the urge to leave is the wandering mind.
+        let verse = NSTextField(wrappingLabelWithString: "“Wherever the restless mind wanders, from there bring it back.”  — Bhagavad Gītā 6.26")
+        verse.font = NSFontManager.shared.convert(.systemFont(ofSize: 11.5), toHaveTrait: .italicFontMask)
+        verse.textColor = .tertiaryLabelColor
         let cancel = NSButton(title: "Keep focusing", target: nil, action: nil)
         cancel.bezelStyle = .glass
         cancel.keyEquivalent = "\u{1b}"
@@ -36,7 +40,7 @@ final class ConfirmEndPanel: NSPanel {
         let buttons = NSStackView(views: [cancel, hold])
         buttons.orientation = .horizontal
         buttons.spacing = 10
-        let stack = NSStackView(views: [title, body, buttons])
+        let stack = NSStackView(views: [title, body, verse, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -50,6 +54,7 @@ final class ConfirmEndPanel: NSPanel {
             stack.topAnchor.constraint(equalTo: root.topAnchor),
             stack.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             body.widthAnchor.constraint(equalToConstant: 320),
+            verse.widthAnchor.constraint(equalToConstant: 320),
             hold.widthAnchor.constraint(equalToConstant: 170),
             hold.heightAnchor.constraint(equalToConstant: 28),
         ])

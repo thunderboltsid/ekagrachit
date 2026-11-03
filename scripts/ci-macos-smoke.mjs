@@ -139,6 +139,8 @@ if (process.env.EK_ARTIFACTS) {
   for (const [name, args, extra] of [
     ['00c-settings-light', [], { EKAGRACHIT_NO_SETUP_WINDOW: '1' }],
     ['00d-setup-settings-dark', [], { EKAGRACHIT_APPEARANCE: 'dark' }],
+    ['00e-about-light', [], { EKAGRACHIT_NO_SETUP_WINDOW: '1', EKAGRACHIT_OPEN_SETTINGS: '0', EKAGRACHIT_OPEN_ABOUT: '1' }],
+    ['00f-about-dark', [], { EKAGRACHIT_NO_SETUP_WINDOW: '1', EKAGRACHIT_OPEN_SETTINGS: '0', EKAGRACHIT_OPEN_ABOUT: '1', EKAGRACHIT_APPEARANCE: 'dark' }],
   ]) {
     const dir = mkdtempSync(join(tmpdir(), 'ek-shot-'));
     const p = spawn(join(app, 'Contents/MacOS/Ekagrachit'), args, {
@@ -153,7 +155,7 @@ if (process.env.EK_ARTIFACTS) {
       const { execFileSync } = await import('node:child_process');
       const wins = JSON.parse(execFileSync(probeBin, ['windows'], { encoding: 'utf8' })).filter((w) => w.pid === p.pid && w.layer === 0);
       console.log(name, 'app windows:', JSON.stringify(wins.map((w) => [w.w, w.h])));
-      if (!wins.some((w) => w.h >= 300 && w.w >= 400)) fail(`${name}: no Settings window with content`);
+      if (!wins.some((w) => w.h >= 300 && w.w >= 400)) fail(`${name}: no window with content`);
     }
     p.kill();
     await new Promise((r) => setTimeout(r, 500));

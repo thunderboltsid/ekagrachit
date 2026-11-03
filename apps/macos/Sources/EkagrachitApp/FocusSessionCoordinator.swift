@@ -317,6 +317,9 @@ final class FocusSessionCoordinator: ObservableObject {
         return nil
     }
 
+    /// Captured when a session starts (the session is cleared by the time it ends).
+    private var lastSessionMinutes = 0
+
     private func perform(_ effect: MachineEffect) {
         switch effect {
         case .syncExtension:
@@ -350,12 +353,14 @@ final class FocusSessionCoordinator: ObservableObject {
         case .clearPersisted:
             store.clear()
         case .sessionStarted:
+            lastSessionMinutes = sessionMinutes
             closeMenuWindow()
             runShortcut(settings.startShortcut)
         case let .sessionEnded(reason):
             runShortcut(settings.endShortcut)
             if reason == .expired {
-                toast.show("Focus session complete")
+                let minutes = lastSessionMinutes
+                toast.show(minutes > 0 ? "Session complete · \(minutes) minutes of one-pointed attention" : "Session complete")
                 if settings.playEndSound { NSSound(named: "Glass")?.play() }
             }
             switch reason {
@@ -384,6 +389,20 @@ final class FocusSessionCoordinator: ObservableObject {
         if isSessionRunning, ticks % 10 == 0 { sendSync() } // heals anything lost in transit
         if ticks % 2 == 0 { accessibilityTrusted = Permissions.accessibilityTrusted }
         updateHUD()
+    }
+
+    /// 0 at the start of the session, 1 at its end.
+    var sessionProgress: Double {
+        guard let s = machine.session else { return 0 }
+        let total = s.deadline.wall - s.startedAt
+        guard total > 0 else { return 0 }
+        return min(1, max(0, 1 - remaining / total))
+    }
+
+    /// The planned length of the current session, in whole minutes.
+    var sessionMinutes: Int {
+        guard let s = machine.session else { return 0 }
+        return Int(((s.deadline.wall - s.startedAt) / 60).rounded())
     }
 
     private func updateRemaining() {
@@ -612,7 +631,7 @@ final class FocusSessionCoordinator: ObservableObject {
         } else if !accessibilityTrusted {
             detail = "Limited: Accessibility off"
         }
-        overlays.hud.update(remaining: remaining, detailText: detail)
+        overlays.hud.update(remaining: remaining, fraction: sessionProgress, detailText: detail)
     }
 
     // MARK: - System events

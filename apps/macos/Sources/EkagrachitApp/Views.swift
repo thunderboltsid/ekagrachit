@@ -8,14 +8,14 @@ struct MenuBarLabel: View {
     var body: some View {
         if coordinator.phase == .active || coordinator.phase == .degraded {
             let minutes = Int((coordinator.remaining / 60).rounded(.up))
-            HStack(spacing: 3) {
-                Image(systemName: coordinator.phase == .degraded ? "exclamationmark.circle" : "circle.circle.fill")
+            HStack(spacing: 4) {
+                Image(nsImage: BrandMark.menuBarImage(active: true))
                 Text("\(minutes)m").monospacedDigit()
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Ekagrachit, \(minutes) minutes remaining")
         } else {
-            Image(systemName: "circle.circle")
+            Image(nsImage: BrandMark.menuBarImage(active: false))
                 .accessibilityLabel("Ekagrachit")
         }
     }
@@ -58,8 +58,11 @@ struct MenuContentView: View {
             if let m = coordinator.message {
                 Text(m).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
+            if needsAttention {
+                Divider()
+                statusRows
+            }
             Divider()
-            statusRows
             footer
         }
         .padding(16)
@@ -145,6 +148,11 @@ struct MenuContentView: View {
         }
     }
 
+    /// Status is plumbing: show it only when something needs you.
+    private var needsAttention: Bool {
+        !coordinator.extensionConnected || !coordinator.accessibilityTrusted || coordinator.bridgeError != nil
+    }
+
     private var statusRows: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -179,6 +187,7 @@ struct MenuContentView: View {
 
     private var footer: some View {
         HStack {
+            Button("About") { NotificationCenter.default.post(name: AppDelegate.showAboutNotification, object: nil) }
             Button("Settings…") { NotificationCenter.default.post(name: AppDelegate.showSettingsNotification, object: nil) }
             Spacer()
             Button("Quit") { NSApp.terminate(nil) }
@@ -229,6 +238,9 @@ struct SettingsView: View {
                 LabeledContent("Version", value: (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "dev")
                 LabeledContent("Chrome extension", value: coordinator.extensionVersion ?? "not connected")
                 HStack {
+                    Button("About the name") { NotificationCenter.default.post(name: AppDelegate.showAboutNotification, object: nil) }
+                        .buttonStyle(.link)
+                    Spacer()
                     Link("Check for updates", destination: URL(string: "https://github.com/thunderboltsid/ekagrachit/releases")!)
                     Spacer()
                     Link("Privacy", destination: URL(string: "https://github.com/thunderboltsid/ekagrachit/blob/main/PRIVACY.md")!)
@@ -259,6 +271,11 @@ struct SetupView: View {
                 Text("Two things are needed before your first focus session.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                Button("एकाग्रचित्त — what does the name mean?") {
+                    NotificationCenter.default.post(name: AppDelegate.showAboutNotification, object: nil)
+                }
+                .buttonStyle(.link)
+                .font(.callout)
                 }
             }
             step(done: coordinator.extensionConnected,

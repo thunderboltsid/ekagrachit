@@ -51,6 +51,26 @@
     details { border-bottom: 1px solid var(--line); padding: 14px 0; }
     summary { cursor: pointer; font-weight: 600; }
     details p, details ol { color: var(--muted); }
+    .name-sec { background: radial-gradient(120% 120% at 50% 0%, var(--hero1), var(--hero2)); color: #e9e8ff; border-bottom: 0; }
+    .name-sec h2 { color: #fff; }
+    .name-sec .deva { font-size: clamp(40px, 7vw, 64px); font-weight: 600; letter-spacing: .01em; margin: 0; color: #fff; }
+    .name-sec .translit { color: #b9b7dc; margin: 4px 0 28px; font-size: 18px; }
+    .terms { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 0 0 36px; }
+    .terms div { border-top: 1px solid rgba(255,255,255,.18); padding-top: 10px; }
+    .terms b { display: block; font-size: 20px; color: #fff; }
+    .terms span { color: #b9b7dc; font-size: 15px; }
+    .states { list-style: none; padding: 0; margin: 14px 0 18px; display: grid; gap: 8px; }
+    .states li { display: grid; grid-template-columns: 110px 1fr; gap: 12px; color: #a9a7cc; }
+    .states li b { color: #d6d4f2; font-weight: 500; }
+    .states li.on b, .states li.on { color: #fff; }
+    .states li.on b::before { content: "● "; color: var(--warm); }
+    .verse { border-left: 2px solid var(--warm); padding: 2px 0 2px 16px; margin: 18px 0; }
+    .verse .sa { font-style: italic; color: #b9b7dc; }
+    .verse .en { color: #fff; font-size: 19px; margin: 4px 0; }
+    .verse .src { color: #9a98c0; font-size: 13px; }
+    .name-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; }
+    .name-sec p { color: #cfcdf0; }
+    .name-sec .note { font-size: 13px; color: #9a98c0; margin-top: 28px; }
     footer { padding: 40px 0 60px; color: var(--muted); font-size: 14px; }
     footer a { color: var(--muted); margin-right: 18px; }
     .devanagari { font-weight: 400; opacity: .7; }
@@ -65,6 +85,7 @@
       <div class="cta">
         <a class="btn primary" href="https://github.com/thunderboltsid/ekagrachit/releases/latest">Download for Mac</a>
         <a class="btn ghost" href="#how">How it works</a>
+        <a class="btn ghost" href="#name">The name</a>
       </div>
       <p class="req">macOS 26 Tahoe · Apple Silicon · Google Chrome</p>
       <div class="shot"><img src="images/focus-session.png" alt="A Google Doc in a focus window; everything else on the screen is frosted over; a small pill shows the time remaining." width="1024" height="768"></div>
@@ -77,6 +98,48 @@
         <h2>The distraction isn't social media.</h2>
         <p>You open a design doc to review it. A paragraph reminds you of a Jira ticket. The ticket links a pull request. Slack pings. Twenty minutes later there are five new tabs, three half-finished thoughts, and <strong>the review you sat down for still isn't done.</strong></p>
         <p>Blockers don't help: Jira, GitHub and Slack are your job. Ekagrachit doesn't judge websites. It protects the <strong>one thing you decided to work on</strong>, for as long as you decided to work on it.</p>
+      </div>
+    </section>
+
+    <section class="name-sec" id="name">
+      <div class="wrap">
+        <p class="deva" lang="sa">एकाग्रचित्त</p>
+        <p class="translit"><i>ekāgra-citta</i> — a mind gathered to one point</p>
+        <div class="terms">
+          <div><b>eka</b><span>one</span></div>
+          <div><b>agra</b><span>point, tip, the foremost</span></div>
+          <div><b>citta</b><span>mind, the field of consciousness</span></div>
+        </div>
+        <div class="name-cols">
+          <div>
+            <h2>Five states of mind</h2>
+            <p>In the Yoga tradition, Vyāsa's commentary on Patañjali's <i>Yoga Sūtras</i> describes five states the mind moves through:</p>
+            <ul class="states">
+              <li><b>kṣipta</b><span>scattered, pulled in every direction</span></li>
+              <li><b>mūḍha</b><span>dull, heavy, unclear</span></li>
+              <li><b>vikṣipta</b><span>distracted: steady for a moment, then pulled away</span></li>
+              <li class="on"><b>ekāgra</b><span>one-pointed: gathered on a single object</span></li>
+              <li><b>niruddha</b><span>still: completely settled</span></li>
+            </ul>
+            <p>Most knowledge work happens in <i>vikṣipta</i>: a mind that could hold a thought, if the next tab didn't take it. Ekagrachit can't make a mind one-pointed. It removes what keeps pulling it away, so <i>ekāgra</i> has room to happen.</p>
+          </div>
+          <div>
+            <h2>A lamp in a windless place</h2>
+            <div class="verse">
+              <div class="sa" lang="sa-Latn">yathā dīpo nivāta-stho neṅgate sopamā smṛtā</div>
+              <div class="en">“As a lamp in a windless place does not flicker — that is the image of the disciplined mind.”</div>
+              <div class="src">Bhagavad Gītā 6.19</div>
+            </div>
+            <p>That lamp is Ekagrachit's mark. The darkened screen is the windless place; your document is the flame.</p>
+            <div class="verse">
+              <div class="sa" lang="sa-Latn">yato yato niścarati manaś cañcalam asthiram, tatas tato niyamyaitad ātmany eva vaśaṁ nayet</div>
+              <div class="en">“Wherever the restless, unsteady mind wanders, from there bring it back.”</div>
+              <div class="src">Bhagavad Gītā 6.26</div>
+            </div>
+            <p>When you switch away and Ekagrachit brings you back, it isn't punishing a lapse. Wandering is what minds do; returning is the practice, what Patañjali calls <i>abhyāsa</i> (<i>Yoga Sūtra</i> 1.12–1.14).</p>
+          </div>
+        </div>
+        <p class="note">These ideas come from India's contemplative traditions rooted in the Vedas. Ekagrachit borrows its name from them with respect; it is a tool, not a teacher.</p>
       </div>
     </section>
 
@@ -150,6 +213,7 @@
 
   <footer>
     <div class="wrap">
+      <a href="#name">The name</a>
       <a href="https://github.com/thunderboltsid/ekagrachit">Source</a>
       <a href="https://github.com/thunderboltsid/ekagrachit/blob/main/PRIVACY.md">Privacy</a>
       <a href="https://github.com/thunderboltsid/ekagrachit/blob/main/docs/installation.md#troubleshooting">Help</a>
